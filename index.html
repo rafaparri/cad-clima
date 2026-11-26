@@ -27,7 +27,7 @@ svg{display:block}
 /* barra de título */
 #title{display:flex;align-items:center;height:2.9rem;background:var(--ttl);border-bottom:1px solid var(--brd);padding-right:.5rem}
 @media (display-mode: window-controls-overlay){#title{padding-left:env(titlebar-area-x,0);padding-right:calc(100vw - env(titlebar-area-x,0px) - env(titlebar-area-width,100vw));-webkit-app-region:drag;app-region:drag}#title button,#qa,#qa *{-webkit-app-region:no-drag;app-region:no-drag}}
-#appb{width:3.6rem;height:100%;border:0;background:#1d6fa8;color:#fff;display:grid;place-items:center}
+#appb{width:3.6rem;height:100%;border:0;background:var(--acc);color:#fff;display:grid;place-items:center}
 #appb:hover{background:#2582c3}
 #qa{display:flex;align-items:center;gap:.1rem;padding:0 .5rem}
 .qa{width:2.2rem;height:2.2rem;border:0;border-radius:.2rem;background:none;display:grid;place-items:center;color:var(--ink)}
@@ -144,6 +144,8 @@ body.lt .tg[aria-pressed=true]{color:#0b6fb8}
 #appm button{display:flex;align-items:center;gap:.7rem;width:100%;height:2.6rem;border:0;background:none;padding:0 .8rem;font-size:1.1rem;text-align:left}
 #appm button:hover{background:var(--hov)}
 #appm hr{border:0;border-top:1px solid var(--brd);margin:.25rem 0}
+#appm svg{width:1.6rem;height:1.6rem;flex:none;color:var(--ink)}
+#appm button span{color:var(--ink)}
 #ctx,#ctx .cm{position:fixed;z-index:55;background:var(--dlg);border:1px solid var(--brd);box-shadow:0 10px 30px #0008;padding:.2rem;min-width:17rem;font-size:1.05rem}
 #ctx .cm{position:absolute;left:100%;top:-.3rem;display:none}
 #ctx .sub{position:relative}#ctx .sub:hover>.cm{display:block}
@@ -268,7 +270,25 @@ let LTD=JSON.parse(JSON.stringify(LTD0)),LTS=50,CELT='BYLAYER',CELTS=1;
 const LWS=[0.05,0.09,0.13,0.15,0.18,0.2,0.25,0.3,0.35,0.4,0.5,0.53,0.6,0.7,0.8,1,1.2,1.4,2];
 const PAPERS={A4:[297,210],A3:[420,297],A2:[594,420],A1:[841,594],A0:[1189,841]};
 const DENS=[1,2,5,10,20,25,50,75,100,125,150,200,250,300,400,500,750,1000,1500,2000,2500,5000];
-const SDEF={vSteel:9,vFib:6,vFlex:4,ortho:false,osnap:true,grid:true,light:false,polar:false,otrack:true,polarInc:90,aperture:10,lwt:true,tab:'inicio',dyn:true,curSize:5,curCol:'#ffffff',curColP:'#000000',curTint:false,pick:5,snapSz:6,snapCol:'#ffb000',snapTip:true,trkFull:true,trkCol:'#4fd16a',gripSz:5,gripCol:'#2f8fff',gripHov:'#ff7f7f',gripHot:'#ff0000',gripMenu:true,gripLim:300,uiTheme:'dark',ui:100,cmdFs:14,bgModel:'#212830',bgPaper:'#8d939b',ribMin:false,clean:false,ftabs:false,rcDef:'menu',rcEdit:'menu',rcCmd:'menuopt',rcTime:false,rcMs:250};
+const CHANGELOG=[
+  {v:'1.6',d:'2026-11-26',t:['Menú Acerca de con la versión y su fecha','Apariencia configurable: temas de color, color de acento, tipo de letra, tamaños y fondos']},
+  {v:'1.5',d:'2026-11-26',t:['Predimensionado de conductos por velocidad máxima (chapa 9 m/s, fibra 6 m/s, flexible 4 m/s), modificable por tramos']},
+  {v:'1.4',d:'2026-11-26',t:['Difusores y rejillas con tamaño y caudal de aire (m³/h)']},
+  {v:'1.3',d:'2026-11-26',t:['Conductos conectables: chapa rectangular, circular y ovoide, fibra, flexible aislado y sin aislar','Cambios de sección, codos y derivaciones (te recta o zapato a 45°)','Publicada en GitHub Pages e instalable como aplicación']},
+  {v:'1.2',d:'2026-11-25',t:['Menús del botón derecho como AutoCAD','Pinzamientos calientes y menús multifuncionales','Estilos de cota y de directriz múltiple completos']},
+  {v:'1.0',d:'2026-11-24',t:['Primera versión: dibujo 2D con comandos, menús y referencias a objetos de AutoCAD, presentaciones, DXF, DWG y PDF']}];
+const APPV=CHANGELOG[0];
+const fdate=d=>{const [y,m,dd]=d.split('-');return dd+'/'+m+'/'+y};
+const THEMES={
+  dark:{n:'Oscuro (como AutoCAD)',v:{}},
+  gray:{n:'Gris medio',v:{'--ttl':'#3a3f47','--tab':'#41464f','--rib':'#4b515b','--pan':'#4b515b','--ptl':'#434952','--brd':'#30343b','--ink':'#f0f2f4','--mute':'#bcc3cc','--hov':'#5c6573','--on':'#6a768a','--inp':'#353a42','--st':'#3a3f47','--dlg':'#4b515b'}},
+  navy:{n:'Azul noche',v:{'--ttl':'#16202e','--tab':'#1b2738','--rib':'#223146','--pan':'#223146','--ptl':'#1d2a3c','--brd':'#121a26','--ink':'#e6edf6','--mute':'#a3b4ca','--hov':'#2e4260','--on':'#36507a','--inp':'#162131','--st':'#18222f','--dlg':'#223146'}},
+  light:{n:'Claro',lt:true,v:{}},
+  sepia:{n:'Claro cálido (descansa la vista)',lt:true,v:{'--ttl':'#e6dfd3','--tab':'#eee8dd','--rib':'#f6f1e7','--pan':'#f6f1e7','--ptl':'#e9e2d6','--brd':'#cfc5b4','--ink':'#2a2520','--mute':'#6b6256','--hov':'#e8dcc6','--on':'#dccbaa','--inp':'#fffdf8','--st':'#e9e2d6','--dlg':'#f6f1e7'}},
+  hc:{n:'Alto contraste (máxima legibilidad)',v:{'--ttl':'#000000','--tab':'#000000','--rib':'#0a0a0a','--pan':'#0a0a0a','--ptl':'#161616','--brd':'#6a6a6a','--ink':'#ffffff','--mute':'#e6e6e6','--hov':'#333333','--on':'#474747','--inp':'#000000','--st':'#000000','--dlg':'#121212','--warn':'#ff9a7a'}}};
+const UIFONTS={segoe:['Segoe UI (como AutoCAD)','"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif'],verdana:['Verdana (muy legible)','Verdana,Geneva,"Segoe UI",sans-serif'],tahoma:['Tahoma','Tahoma,"Segoe UI",sans-serif'],arial:['Arial','Arial,"Helvetica Neue",sans-serif'],calibri:['Calibri','Calibri,"Segoe UI",sans-serif'],system:['Letra del sistema','system-ui,-apple-system,sans-serif']};
+const ACCENTS=[['#2a95d8','Azul AutoCAD'],['#1f6fd1','Azul intenso'],['#18a39a','Turquesa'],['#3aa655','Verde'],['#e08a1e','Naranja'],['#d64545','Rojo'],['#8a5cd6','Morado'],['#6b7787','Gris']];
+const SDEF={acc:'#2a95d8',font:'segoe',vSteel:9,vFib:6,vFlex:4,ortho:false,osnap:true,grid:true,light:false,polar:false,otrack:true,polarInc:90,aperture:10,lwt:true,tab:'inicio',dyn:true,curSize:5,curCol:'#ffffff',curColP:'#000000',curTint:false,pick:5,snapSz:6,snapCol:'#ffb000',snapTip:true,trkFull:true,trkCol:'#4fd16a',gripSz:5,gripCol:'#2f8fff',gripHov:'#ff7f7f',gripHot:'#ff0000',gripMenu:true,gripLim:300,uiTheme:'dark',ui:100,cmdFs:14,bgModel:'#212830',bgPaper:'#8d939b',ribMin:false,clean:false,ftabs:false,rcDef:'menu',rcEdit:'menu',rcCmd:'menuopt',rcTime:false,rcMs:250};
 const S={...SDEF};let CECOL=null,CELW=null,docName='Plano1';
 let mouseS=[0,0],mouseW=[0,0],snap=null,inCanvas=false,lastPt=[0,0];
 let req=null,running=null,lastCmd=null,win=null,pan=null;
@@ -3195,6 +3215,8 @@ const CMDS=[
   ['ESTIRA','S STRETCH','Estirar','Editar',cStretch,'Mueve los vértices que queden dentro de una ventana de captura.'],
   ['MATRIZ','AR ARRAY MATRIZR MATRIZPOLAR ARRAYRECT ARRAYPOLAR','Matriz','Editar',cArray,'Copias en filas y columnas, o alrededor de un centro.'],
   ['DESCOMP','X EXPLODE','Descomp.','Editar',cExplode,'Separa polilíneas, cotas, directrices, textos múltiples y símbolos en piezas.'],
+  ['APARIENCIA','ASPECTO THEME','Apariencia','Utilidades',cAppearance,'Tema de colores, color de acento, tipo de letra, tamaños de la interfaz y fondos de dibujo.'],
+  ['ACERCADE','ABOUT VERSION','Acerca de','Utilidades',cAbout,'Versión del programa, fecha de actualización y novedades.'],
   ['INSTALARAPP','INSTALAR','Instalar como aplicación','Utilidades',cInstallApp,'Instala CAD Clima 2D como aplicación de escritorio, en su propia ventana y sin conexión.'],
   ['CORTARPP','CUTCLIP','Cortar Ctrl+X','Editar',cCutClip,'Copia la selección al portapapeles y la borra del dibujo.'],
   ['COPIABASE','COPYBASE','Copiar con punto base','Editar',cCopyBase,'Copia objetos al portapapeles con el punto base que indique (Ctrl+Mayús+C).'],
@@ -3364,6 +3386,8 @@ REHACER:`<path d="M16 4l4 4-4 4"/><path d="M20 8H10a6 6 0 0 0 0 12h6" stroke="${
 ZOOM:`<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5 21 21"/><rect x="7.5" y="7.5" width="5" height="5" stroke="${IA}"/>`,
 REFENT:`<rect x="7" y="7" width="10" height="10" stroke="${IY}"/><path d="M3 12h4M17 12h4M12 3v4M12 17v4"/>`,
 OPCIONES:`<circle cx="12" cy="12" r="3.2" stroke="${IA}"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>`,
+APARIENCIA:`<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.6-.9 1.2-1.8-.5-1-.1-2.2 1.2-2.2H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2" stroke="${IA}"/><circle cx="10.5" cy="7" r="1.2" stroke="${IA}"/><circle cx="15.5" cy="7.5" r="1.2" stroke="${IA}"/>`,
+ACERCADE:`<circle cx="12" cy="12" r="9"/><path d="M12 11v6" stroke="${IA}"/><circle cx="12" cy="7.6" r=".9" fill="${IA}" stroke="${IA}"/>`,
 AYUDA:`<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7v.5" stroke="${IA}"/><circle cx="12" cy="17" r=".8" fill="${IA}" stroke="${IA}"/>`,
 PROPIEDADES:`<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M7 8h10M7 12h10M7 16h6" stroke="${IA}"/>`,
 IMPORTARPDF:`<path d="M5 2h10l4 4v16H5z"/><path d="M15 2v4h4"/><path d="M8 12h3M8 15h3" stroke="${IR}"/><path d="M13 17l3 3 3-3M16 11v9" stroke="${IA}"/>`,
@@ -3399,7 +3423,7 @@ const RIB={
   anotar:[{t:'Texto',cols:['TEXTOM',['TEXTO','DDEDIC'],{combo:'tsty'}]},{t:'Cotas',cols:['ACOLINEAL',['ACOALINEADA','ACOANGULO','ACORADIO'],['ACODIAMETRO','ACOCONTINUA','ACOLINEABASE'],['ACOCENTRO','ACOREMPLAZAR','!BORRACOTAS'],['ACOARCO','ACORECODO','ACOLINRECOD'],['ACOCORTE','ACOESPAC'],{combo:'dsty'}]},{t:'Directrices',cols:['DIRECTRIZM',{combo:'msty'}]},{t:'Medir',cols:['DIST']}],
   pres:[{t:'Presentación',cols:['PRESENTACION','CONFIGPAG']},{t:'Ventanas de presentación',cols:['VMULT',['ESPACIOM','ESPACIOP']]}],
   salida:[{t:'Trazar',cols:['TRAZAR']},{t:'Exportar',cols:['GUARDAR','PNG']}],
-  vista:[{t:'Navegar',cols:['ZOOM']},{t:'Paletas',cols:['PROPIEDADES','CAPA']},{t:'Tipos y grosores',cols:['TIPOLIN',['ESCALATL','GROSORLIN']]},{t:'Ajustes',cols:['REFENT','OPCIONES','COMANDOS']}]};
+  vista:[{t:'Navegar',cols:['ZOOM']},{t:'Paletas',cols:['PROPIEDADES','CAPA']},{t:'Tipos y grosores',cols:['TIPOLIN',['ESCALATL','GROSORLIN']]},{t:'Ajustes',cols:['REFENT','OPCIONES','COMANDOS']},{t:'Interfaz',cols:['APARIENCIA','ACERCADE']}]};
 ALIAS={};{const objs=CMDS.map(([n,al,label,grp,f,desc])=>({n,al,label,f,desc}));for(const c of objs)for(const a of c.al.split(' '))if(a)ALIAS[a]=c;for(const c of objs)ALIAS[c.n]=c}
 function btnHtml(spec,big){const io=spec[0]==='!',n=io?spec.slice(1):spec,c=ALIAS[n];if(!c)return '';const t=`${c.label} (${n}) — ${c.desc}`;
   return big?`<button class="big" data-c="${n}" title="${esc(t)}">${ic(n)}<span>${esc(c.label)}</span></button>`:`<button class="sm${io?' io':''}" data-c="${n}" title="${esc(t)}">${ic(n)}${io?'':`<span>${esc(c.label)}</span>`}</button>`}
@@ -3437,7 +3461,7 @@ $('#rbody').addEventListener('change',ev=>{
   after();if(matchMedia('(pointer:fine)').matches)inp.focus();
 });
 $('#qa').innerHTML=[['NUEVO','Nuevo (Ctrl+N)'],['ABRIR','Abrir (Ctrl+O)'],['GUARDAR','Guardar DXF (Ctrl+S)'],['TRAZAR','Imprimir (Ctrl+P)'],['U','Deshacer (Ctrl+Z)'],['REHACER','Rehacer (Ctrl+Y)']].map(([c,l])=>`<button class="qa" data-c="${c}" title="${l}" aria-label="${l}">${ic(c)}</button>`).join('');
-$('#appm').innerHTML=[['NUEVO','Nuevo'],['ABRIR','Abrir DWG / DXF…'],['IMPORTARPDF','Importar PDF…'],['GUARDAR','Guardar como DXF…'],null,['PNG','Exportar imagen PNG'],['TRAZAR','Imprimir a PDF…'],null,['OPCIONES','Opciones…'],['INSTALARAPP','Instalar como aplicación'],['AYUDA','Ayuda']].map(x=>x?`<button data-c="${x[0]}">${ic(x[0])}<span>${x[1]}</span></button>`:'<hr>').join('');
+$('#appm').innerHTML=[['NUEVO','Nuevo'],['ABRIR','Abrir DWG / DXF…'],['IMPORTARPDF','Importar PDF…'],['GUARDAR','Guardar como DXF…'],null,['PNG','Exportar imagen PNG'],['TRAZAR','Imprimir a PDF…'],null,['OPCIONES','Opciones…'],['APARIENCIA','Apariencia…'],['INSTALARAPP','Instalar como aplicación'],null,['AYUDA','Ayuda'],['ACERCADE','Acerca de CAD Clima 2D']].map(x=>x?`<button data-c="${x[0]}">${ic(x[0])}<span>${x[1]}</span></button>`:'<hr>').join('')+`<div style="padding:.5rem .8rem .3rem;color:var(--mute);font-size:.95rem;border-top:1px solid var(--brd);margin-top:.25rem">Versión ${APPV.v} · ${fdate(APPV.d)}</div>`;
 $('#appb').addEventListener('click',ev=>{ev.stopPropagation();$('#appm').classList.toggle('open')});
 document.addEventListener('pointerdown',ev=>{if(!ev.target.closest('#appm,#appb'))$('#appm').classList.remove('open')});
 document.addEventListener('click',ev=>{const b=ev.target.closest('#qa [data-c],#rbody [data-c],#appm [data-c],#ftabs [data-c]');if(!b)return;$('#appm').classList.remove('open');document.body.classList.remove('rpop');run(b.dataset.c);if(matchMedia('(pointer:fine)').matches)inp.focus()});
@@ -3455,7 +3479,43 @@ $('#sideX').onclick=()=>togglePal(false);
 function togglePal(force){const o=$('#side').classList.toggle('open',force);if(o)refresh()}
 function setTitle(){$('#fname').textContent=docName+'.dxf';$('#ftab').textContent=docName;try{localStorage.setItem('cadclima.name',docName)}catch(e){}}
 const lum=h=>{const n=parseInt(String(h).slice(1),16);return (0.299*((n>>16)&255)+0.587*((n>>8)&255)+0.114*(n&255))/255};
-function applyUI(){const r=document.documentElement.style;r.setProperty('--fs',(12*S.ui/100)+'px');r.setProperty('--cmdfs',S.cmdFs+'px');document.body.classList.toggle('lt',S.uiTheme==='light');document.body.classList.toggle('rmin',!!S.ribMin);document.body.classList.toggle('clean',!!S.clean);document.body.classList.toggle('ftabs',!!S.ftabs);$('#tClean').setAttribute('aria-pressed',!!S.clean);S.light=lum(S.bgModel)>.5;requestAnimationFrame(()=>{resize();draw()})}
+function applyUI(){const r=document.documentElement.style;r.setProperty('--fs',(12*S.ui/100)+'px');r.setProperty('--cmdfs',S.cmdFs+'px');const th=THEMES[S.uiTheme]||THEMES.dark,bs=document.body.style;for(const t of Object.values(THEMES))for(const k of Object.keys(t.v))bs.removeProperty(k);for(const [k,v] of Object.entries(th.v))bs.setProperty(k,v);bs.setProperty('--acc',S.acc||'#2a95d8');bs.fontFamily=(UIFONTS[S.font]||UIFONTS.segoe)[1];document.body.classList.toggle('lt',!!th.lt);document.body.classList.toggle('rmin',!!S.ribMin);document.body.classList.toggle('clean',!!S.clean);document.body.classList.toggle('ftabs',!!S.ftabs);$('#tClean').setAttribute('aria-pressed',!!S.clean);S.light=lum(S.bgModel)>.5;requestAnimationFrame(()=>{resize();draw()})}
+
+function cAbout(){
+  const hist=CHANGELOG.map(c=>`<div style="margin:.55rem 0"><b style="color:var(--ink)">Versión ${c.v}</b> <span style="color:var(--mute)">· ${fdate(c.d)}</span><ul style="margin:.25rem 0 0 1.2rem;padding:0">${c.t.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`).join('');
+  dialog('Acerca de CAD Clima 2D',`<div style="display:flex;gap:1rem;align-items:center;margin-bottom:.8rem"><div style="width:4.2rem;height:4.2rem;border-radius:.6rem;background:var(--acc);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"><path d="M3 21V4l17 17z"/><path d="M7 17v-4.5l4.5 4.5z"/></svg></div>
+    <div><div style="font-size:1.6rem;font-weight:700;color:var(--ink)">CAD Clima 2D</div><div style="font-size:1.15rem">Versión <b>${APPV.v}</b> · actualizada el <b>${fdate(APPV.d)}</b></div><div style="color:var(--mute)">CAD 2D con comandos de AutoCAD para instalaciones de climatización</div></div></div>
+    <div class="row" style="gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem"><span>Dirección:</span><b style="user-select:text">https://rafaparri.github.io/cad-clima/</b></div>
+    <div style="color:var(--mute);margin-bottom:.3rem">${isApp()?'Funcionando como aplicación instalada.':location.protocol==='file:'?'Abierta como archivo local.':'Abierta en el navegador.'}</div>
+    <h4 style="margin:.9rem 0 .2rem;color:var(--ink)">Novedades</h4><div style="max-height:40vh;overflow:auto">${hist}</div>`,
+    [['Buscar actualización',async()=>{try{if('serviceWorker' in navigator){const r=await navigator.serviceWorker.getRegistration();if(r)await r.update()}}catch(e){}msg('Cargando la última versión…');setTimeout(()=>location.reload(),300)}],['Cerrar',null,true]]);
+}
+function cAppearance(){
+  const keys=['uiTheme','acc','font','ui','cmdFs','bgModel','bgPaper','curCol','ribMin'],old={};for(const k of keys)old[k]=S[k];
+  const sw=ACCENTS.map(([c,n])=>`<button type="button" class="accsw" data-c="${c}" title="${n}" aria-label="${n}" style="width:2.2rem;height:2.2rem;border-radius:50%;border:2px solid ${c===S.acc?'var(--ink)':'transparent'};background:${c};cursor:pointer"></button>`).join('');
+  const sel=(id,opts,v)=>`<select id="${id}" class="inp">${opts.map(([a,b])=>`<option value="${a}" ${String(a)===String(v)?'selected':''}>${esc(b)}</option>`).join('')}</select>`;
+  dialog('Apariencia',`<p class="tip" style="margin:0 0 .6rem">Los cambios se ven al momento. Aceptar los guarda; Cancelar vuelve a como estaba.</p>
+  <fieldset><legend>Colores de la interfaz</legend>
+    <label class="pr"><span>Tema</span>${sel('apT',Object.entries(THEMES).map(([k,t])=>[k,t.n]),S.uiTheme)}</label>
+    <div class="pr"><span>Color de acento</span><span style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center">${sw}<input type="color" id="apA" value="${S.acc}" title="Otro color" style="width:2.6rem;height:2.2rem"></span></div></fieldset>
+  <fieldset><legend>Letra y tamaños</legend>
+    <label class="pr"><span>Tipo de letra</span>${sel('apF',Object.entries(UIFONTS).map(([k,f])=>[k,f[0]]),S.font)}</label>
+    <label class="pr"><span>Tamaño de la interfaz</span>${sel('apU',[100,110,125,150,175,200].map(v=>[v,v+' %']),S.ui)}</label>
+    <label class="pr"><span>Letra de la línea de comandos</span>${sel('apC',[11,12,13,14,16,18,20,22,24].map(v=>[v,v+' px']),S.cmdFs)}</label>
+    <label class="chk"><input type="checkbox" id="apR" ${S.ribMin?'checked':''}> Cinta minimizada (solo pestañas)</label></fieldset>
+  <fieldset><legend>Zona de dibujo</legend>
+    <div class="pr"><span>Fondo del Modelo</span><span style="display:flex;gap:.35rem;align-items:center"><input type="color" id="apBM" value="${S.bgModel}"><button type="button" class="btn" data-bg="#1a1e24">Oscuro</button><button type="button" class="btn" data-bg="#000000">Negro</button><button type="button" class="btn" data-bg="#ffffff">Blanco</button></span></div>
+    <div class="pr"><span>Fondo alrededor del papel</span><input type="color" id="apBP" value="${S.bgPaper}"></div>
+    <div class="pr"><span>Color del cursor en el Modelo</span><input type="color" id="apCu" value="${S.curCol}"></div></fieldset>`,
+  [['Restablecer aspecto',()=>{Object.assign(S,{uiTheme:SDEF.uiTheme||'dark',acc:SDEF.acc,font:SDEF.font,ui:SDEF.ui,cmdFs:SDEF.cmdFs,bgModel:SDEF.bgModel,bgPaper:SDEF.bgPaper,curCol:SDEF.curCol,ribMin:SDEF.ribMin});saveS();applyUI();renderRibbon();draw();msg('Aspecto restablecido')}],
+   ['Cancelar',()=>{Object.assign(S,old);applyUI();renderRibbon();draw()}],['Aceptar',()=>{saveS();msg('Apariencia guardada')},true]]);
+  let fin=false;
+  const live=()=>{S.uiTheme=$('#apT').value;S.font=$('#apF').value;S.ui=+$('#apU').value;S.cmdFs=+$('#apC').value;S.ribMin=$('#apR').checked;S.bgModel=$('#apBM').value;S.bgPaper=$('#apBP').value;S.curCol=$('#apCu').value;S.acc=$('#apA').value;applyUI();renderRibbon();draw()};
+  for(const id of ['#apT','#apF','#apU','#apC','#apR','#apBM','#apBP','#apCu','#apA'])$(id).addEventListener('input',live),$(id).addEventListener('change',live);
+  for(const b of document.querySelectorAll('#dlgB .accsw'))b.onclick=()=>{$('#apA').value=b.dataset.c;document.querySelectorAll('#dlgB .accsw').forEach(x=>x.style.borderColor=x===b?'var(--ink)':'transparent');live()};
+  for(const b of document.querySelectorAll('#dlgB [data-bg]'))b.onclick=()=>{$('#apBM').value=b.dataset.bg;live()};
+  dlg.addEventListener('close',function h(){dlg.removeEventListener('close',h);setTimeout(()=>{if(!fin&&JSON.stringify(keys.map(k=>S[k]))!==JSON.stringify(keys.map(k=>old[k]))){const saved=JSON.parse(localStorage.getItem('cadclima.s')||'{}');if(keys.some(k=>saved[k]!==S[k])){Object.assign(S,old);applyUI();renderRibbon();draw()}}},0)});
+}
 function cOptions(){
   const rg=(id,lab,min,max,v,st)=>`<div class="opr"><span>${lab}</span><span style="display:flex;gap:.4rem;align-items:center"><input type="range" id="${id}R" min="${min}" max="${max}" step="${st||1}" value="${v}"><input class="inp num" id="${id}" value="${v}" inputmode="decimal"></span></div>`;
   const cl=(id,lab,v)=>`<div class="opr"><span>${lab}</span><input type="color" id="${id}" value="${v}"></div>`;
@@ -3465,7 +3525,7 @@ function cOptions(){
   <fieldset><legend>Referencias a objetos y rastreo</legend><div class="opg">${rg('oSnap','Tamaño del marcador AutoSnap (px)',3,16,S.snapSz)}${cl('oSnapC','Color del marcador',S.snapCol)}${rg('oAp','Tamaño de la apertura (px)',3,40,S.aperture)}${ck('oTip','Mostrar la etiqueta del marcador',S.snapTip)}${ck('oFull','Vectores de rastreo en toda la pantalla (infinitos)',S.trkFull)}${cl('oTrkC','Color de los vectores de rastreo',S.trkCol)}${sl('oInc','Incremento del rastreo polar',[[90,'90°'],[45,'45°'],[30,'30°'],[22.5,'22,5°'],[15,'15°'],[10,'10°'],[5,'5°']],S.polarInc)}</div></fieldset>
   <fieldset><legend>Preferencias de usuario</legend><div class="opr"><span>Comportamiento del botón derecho del ratón</span><button type="button" class="btn" id="oRc">Personalización del botón derecho…</button></div></fieldset>
   <fieldset><legend>Pinzamientos</legend><div class="opg">${rg('oGrip','Tamaño de los pinzamientos (px)',2,12,S.gripSz)}${cl('oGripC','Color de pinzamiento no seleccionado',S.gripCol)}${cl('oGripH','Color de pinzamiento al pasar el ratón',S.gripHov)}${cl('oGripT','Color de pinzamiento seleccionado (caliente)',S.gripHot)}</div><label class="chk"><input type="checkbox" id="oGripM" ${S.gripMenu?'checked':''}> Mostrar menús de pinzamientos multifuncionales al pasar el ratón</label><label class="pr" style="grid-template-columns:minmax(0,1fr) 7rem"><span>Límite de objetos para mostrar pinzamientos</span><input id="oGripL" class="inp" inputmode="numeric" value="${S.gripLim||300}"></label></fieldset>
-  <fieldset><legend>Pantalla</legend><div class="opg">${sl('oTheme','Combinación de colores',[['dark','Oscura'],['light','Clara']],S.uiTheme)}${sl('oUi','Tamaño de la interfaz',[[100,'100 %'],[110,'110 %'],[125,'125 %'],[150,'150 %'],[175,'175 %'],[200,'200 %']],S.ui)}${sl('oCmdF','Letra de la línea de comandos',[11,12,13,14,16,18,20,22,24].map(v=>[v,v+' px']),S.cmdFs)}${ck('oFt','Mostrar la barra de pestañas de archivo',S.ftabs)}${ck('oRm','Cinta minimizada (solo pestañas)',S.ribMin)}${cl('oBgM','Fondo del Modelo',S.bgModel)}${cl('oBgP','Fondo alrededor del papel',S.bgPaper)}</div></fieldset>`,
+  <fieldset><legend>Pantalla</legend><div class="opg">${sl('oTheme','Combinación de colores',Object.entries(THEMES).map(([k,t])=>[k,t.n]),S.uiTheme)}${sl('oUi','Tamaño de la interfaz',[[100,'100 %'],[110,'110 %'],[125,'125 %'],[150,'150 %'],[175,'175 %'],[200,'200 %']],S.ui)}${sl('oCmdF','Letra de la línea de comandos',[11,12,13,14,16,18,20,22,24].map(v=>[v,v+' px']),S.cmdFs)}${ck('oFt','Mostrar la barra de pestañas de archivo',S.ftabs)}${ck('oRm','Cinta minimizada (solo pestañas)',S.ribMin)}${cl('oBgM','Fondo del Modelo',S.bgModel)}${cl('oBgP','Fondo alrededor del papel',S.bgPaper)}</div></fieldset>`,
   [['Restablecer',()=>{const keep={ortho:S.ortho,osnap:S.osnap,grid:S.grid,polar:S.polar,otrack:S.otrack,lwt:S.lwt,tab:S.tab};Object.assign(S,SDEF,keep);saveS();applyUI();syncTg();msg('Opciones restablecidas')}],['Cancelar'],['Aceptar',()=>{
     const n=(id,d)=>{const v=+String($(id).value).replace(',','.');return isFinite(v)&&v>0?v:d};
     S.curSize=Math.min(100,n('#oCur',S.curSize));S.pick=n('#oPick',S.pick);S.curCol=$('#oCurC').value;S.curColP=$('#oCurP').value;S.curTint=$('#oTint').checked;S.dyn=$('#oDyn').checked;
