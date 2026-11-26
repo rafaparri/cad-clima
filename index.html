@@ -273,7 +273,7 @@ const S={...SDEF};let CECOL=null,CELW=null,docName='Plano1';
 let mouseS=[0,0],mouseW=[0,0],snap=null,inCanvas=false,lastPt=[0,0];
 let req=null,running=null,lastCmd=null,win=null,pan=null;
 let undoSt=[],redoSt=[];
-const DEF={textH:250,dimH:150,ductW:400,ductH:'300',wallW:150,DIF:600,REJ:600,UI:1000,CAS:840,UE:900,off:100};
+const DEF={dk:'rect',ds:{rect:{w:400,h:300},fib:{w:400,h:300},oval:{w:400,h:200},circ:{w:250,h:250},flexA:{w:200,h:200},flex:{w:200,h:200}},textH:250,dimH:150,ductW:400,ductH:'300',wallW:150,DIF:600,REJ:600,UI:1000,CAS:840,UE:900,off:100};
 class Cancel{}
 
 /* ---------- colores ---------- */
@@ -657,7 +657,7 @@ function mtGeom(e){
   const r=e.rot||0,c=Math.cos(r),sn=Math.sin(r),al=['l','c','r'][col],xo=x0+[0,bw/2,bw][col];
   return {texts:ls.map((l,i)=>{const lx=xo,ly=yt-e.h-i*lsp;return {t:'text',x:e.x+lx*c-ly*sn,y:e.y+lx*sn+ly*c,h:e.h,s:l,rot:r,al,st:e.st}}).filter(t=>t.s.trim()),lines:[],fills:[],box:[[x0,yt],[x0+bw,yt],[x0+bw,yt-Ht],[x0,yt-Ht]].map(([x,y])=>[e.x+x*c-y*sn,e.y+x*sn+y*c])};
 }
-const COMP={dim:dimGeom,mtext:mtGeom,ldr:ldrGeom,rdim:rdimGeom,adim:adimGeom};
+const COMP={dim:dimGeom,mtext:mtGeom,ldr:ldrGeom,rdim:rdimGeom,adim:adimGeom,duct:(...a)=>ductGeom(...a)};
 function comp(e){return COMP[e.t](e)}
 function segs(e){
   switch(e.t){
@@ -669,7 +669,7 @@ function segs(e){
     case 'circle':return arcSegs(e.cx,e.cy,e.r,0,TAU,64);
     case 'arc':{const sp=span(e.a1,e.a2);return arcSegs(e.cx,e.cy,e.r,e.a1,sp,Math.max(6,Math.ceil(sp/TAU*64)))}
     case 'text':{const q=textBox(e);return q.map((p,i)=>[p[0],p[1],q[(i+1)%4][0],q[(i+1)%4][1]])}
-    case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':{const g=comp(e),o=g.lines.slice();for(const f of g.fills)if(!f.mask)f.forEach((p,i)=>{const q=f[(i+1)%f.length];o.push([p[0],p[1],q[0],q[1]])});for(const t of g.texts)o.push(...segs(t));return o}
+    case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':{const g=comp(e),o=g.lines.slice();for(const f of g.fills)if(!f.mask)f.forEach((p,i)=>{const q=f[(i+1)%f.length];o.push([p[0],p[1],q[0],q[1]])});for(const t of g.texts)o.push(...segs(t));return o}
     case 'vp':return [[e.x1,e.y1,e.x2,e.y1],[e.x2,e.y1,e.x2,e.y2],[e.x2,e.y2,e.x1,e.y2],[e.x1,e.y2,e.x1,e.y1]];
   }
   return [];
@@ -679,6 +679,7 @@ function bb(e){
   let b;
   if(e.t==='circle')b=[e.cx-e.r,e.cy-e.r,e.cx+e.r,e.cy+e.r];
   else{b=[Infinity,Infinity,-Infinity,-Infinity];for(const s of segs(e)){b[0]=Math.min(b[0],s[0],s[2]);b[1]=Math.min(b[1],s[1],s[3]);b[2]=Math.max(b[2],s[0],s[2]);b[3]=Math.max(b[3],s[1],s[3])}}
+  if(e.t==='duct')return b;
   Object.defineProperty(e,'_bb',{value:b,configurable:true,writable:true,enumerable:false});
   return b;
 }
@@ -716,6 +717,7 @@ function applyM(e,M){
     case 'arc':{const s=ap(M,e.cx+e.r*Math.cos(e.a1),e.cy+e.r*Math.sin(e.a1)),f=ap(M,e.cx+e.r*Math.cos(e.a2),e.cy+e.r*Math.sin(e.a2));[e.cx,e.cy]=ap(M,e.cx,e.cy);e.r*=k;let a1=Math.atan2(s[1]-e.cy,s[0]-e.cx),a2=Math.atan2(f[1]-e.cy,f[0]-e.cx);if(det<0)[a1,a2]=[a2,a1];e.a1=a1;e.a2=a2;break}
     case 'text':{const r=e.rot||0,c=Math.cos(r),s=Math.sin(r);[e.x,e.y]=ap(M,e.x,e.y);const vx=M[0]*c+M[2]*s,vy=M[1]*c+M[3]*s,hx=-M[0]*s+M[2]*c,hy=-M[1]*s+M[3]*c;e.h*=Math.hypot(hx,hy)||1;let nr=Math.atan2(vy,vx);if(det<0){const a=nrm(nr);if(a>Math.PI/2+1e-6&&a<=Math.PI*1.5+1e-6){nr+=Math.PI;if(e.al==='l'||!e.al){const w=textW(e.s,e.h);e.x-=w*Math.cos(nr);e.y-=w*Math.sin(nr)}}}e.rot=nr;break}
     case 'ldr':e.pts=e.pts.map(p=>ap(M,p[0],p[1]));if(e.h)e.h*=k;else e.k=(e.k||1)*k;if(e.w)e.w*=k;break;
+    case 'duct':e.pts=e.pts.map(p=>ap(M,p[0],p[1]));if(Math.abs(k-1)>1e-9)e.sec=e.sec.map(x=>({w:x.w*k,h:x.h*k}));if(det<0&&e.tr)e.tr=e.tr.map(x=>x==='l'?'r':x==='r'?'l':x);break;
     case 'rdim':[e.cx,e.cy]=ap(M,e.cx,e.cy);[e.x3,e.y3]=ap(M,e.x3,e.y3);if(e.jog){[e.ox,e.oy]=ap(M,e.ox,e.oy);[e.jx,e.jy]=ap(M,e.jx,e.jy)}e.r*=k;if(e.h)e.h*=k;else e.k=(e.k||1)*k;break;
     case 'adim':{[e.cx,e.cy]=ap(M,e.cx,e.cy);[e.x1,e.y1]=ap(M,e.x1,e.y1);[e.x2,e.y2]=ap(M,e.x2,e.y2);[e.x3,e.y3]=ap(M,e.x3,e.y3);if(e.h)e.h*=k;else e.k=(e.k||1)*k;if(det<0){[e.x1,e.y1,e.x2,e.y2]=[e.x2,e.y2,e.x1,e.y1]}break}
     case 'mtext':{const r=e.rot||0;[e.x,e.y]=ap(M,e.x,e.y);const vx=M[0]*Math.cos(r)+M[2]*Math.sin(r),vy=M[1]*Math.cos(r)+M[3]*Math.sin(r);e.h*=k;if(e.w)e.w*=k;let nr=Math.atan2(vy,vx);if(det<0)nr=readable(nr);e.rot=nr;break}
@@ -843,7 +845,7 @@ function drawEnt(c,vw,e){
     case 'circle':c.beginPath();c.arc(X(e.cx),Y(e.cy),Math.max(e.r*vw.s,.5),0,TAU);c.stroke();break;
     case 'arc':c.beginPath();c.arc(X(e.cx),Y(e.cy),Math.max(e.r*vw.s,.5),-e.a1,-e.a2,true);c.stroke();break;
     case 'text':drawText(c,vw,e);break;
-    case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':drawComp(c,vw,e);break;
+    case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':drawComp(c,vw,e);break;
     case 'point':{const x=X(e.x),y=Y(e.y);c.beginPath();c.moveTo(x-3,y-3);c.lineTo(x+3,y+3);c.moveTo(x+3,y-3);c.lineTo(x-3,y+3);c.stroke();break}
     case 'xline':{const s=segs(e)[0];c.beginPath();c.moveTo(X(s[0]),Y(s[1]));c.lineTo(X(s[2]),Y(s[3]));c.stroke();break}
     case 'img':{const im=imgEl(e.img);if(im&&im.complete&&im.naturalWidth){c.save();c.globalAlpha=e.fade!=null?e.fade:.6;c.drawImage(im,X(e.x),Y(e.y+e.h),e.w*vw.s,e.h*vw.s);c.restore()}c.beginPath();c.rect(X(e.x),Y(e.y+e.h),e.w*vw.s,e.h*vw.s);c.stroke();break}
@@ -1110,7 +1112,7 @@ async function cDrawOrder(opt0){
     const at=k==='E'?Math.max(...idx)+1:Math.min(...idx);out=[...rest.slice(0,at),...mv,...rest.slice(at)]}
   mod();ents.splice(0,ents.length,...out);msg(`Orden de ${mv.length} objeto(s) cambiado`);
 }
-const QTN={line:'Línea',pline:'Polilínea',circle:'Círculo',arc:'Arco',text:'Texto',mtext:'Texto múltiple',dim:'Cota lineal o alineada',rdim:'Cota de radio o diámetro',adim:'Cota angular',ldr:'Directriz múltiple',vp:'Ventana gráfica',img:'Imagen',point:'Punto',xline:'Línea auxiliar'};
+const QTN={duct:'Conducto',line:'Línea',pline:'Polilínea',circle:'Círculo',arc:'Arco',text:'Texto',mtext:'Texto múltiple',dim:'Cota lineal o alineada',rdim:'Cota de radio o diámetro',adim:'Cota angular',ldr:'Directriz múltiple',vp:'Ventana gráfica',img:'Imagen',point:'Punto',xline:'Línea auxiliar'};
 const styOf=e=>e.ds||e.ms||e.st||'';
 function cSelSimilar(){const base=ents.filter(e=>sel.has(e.id));if(!base.length){msg('Seleccione primero un objeto de referencia','e');return}
   const key=e=>e.t+'|'+e.layer+'|'+styOf(e),keys=new Set(base.map(key));let n=0;for(const e of ents)if(vis(e)&&keys.has(key(e))){sel.add(e.id);n++}refresh();draw();msg(`${sel.size} objeto(s) seleccionado(s) (mismo tipo, capa y estilo)`)}
@@ -1286,7 +1288,7 @@ function saveS(){try{localStorage.setItem('cadclima.s',JSON.stringify(S));localS
 function pick(w){
   const tol=7/view.s;let best=null,bd=tol;
   for(let i=ents.length-1;i>=0;i--){const e=ents[i];if(!vis(e))continue;const b=bb(e);if(w[0]<b[0]-tol||w[0]>b[2]+tol||w[1]<b[1]-tol||w[1]>b[3]+tol)continue;
-    let d=Infinity;if(e.t==='text'&&inPoly(w,textBox(e)))d=0;else if(COMP[e.t]&&comp(e).texts.some(t=>inPoly(w,textBox(t))))d=0;else for(const s of segs(e))d=Math.min(d,dSeg(w,s));
+    let d=Infinity;if(e.t==='duct'&&ductSegData(e).some(g=>{const t=(w[0]-g.a[0])*g.u[0]+(w[1]-g.a[1])*g.u[1],q=(w[0]-g.a[0])*g.n[0]+(w[1]-g.a[1])*g.n[1];return t>=0&&t<=g.L&&q<=g.wl&&q>=-g.wr}))d=0;else if(e.t==='text'&&inPoly(w,textBox(e)))d=0;else if(COMP[e.t]&&comp(e).texts.some(t=>inPoly(w,textBox(t))))d=0;else for(const s of segs(e))d=Math.min(d,dSeg(w,s));
     if(d<bd){bd=d;best=e}}
   return best;
 }
@@ -1319,6 +1321,7 @@ function gripsOf(e){
     case 'xline':return [[e.x,e.y,'mv']];
     case 'img':return [[e.x,e.y,'mv']];
     case 'ldr':return e.pts.map((p,i)=>[p[0],p[1],'v'+i]);
+    case 'duct':{const o=e.pts.map((p,i)=>[p[0],p[1],'v'+i]);for(let i=0;i<e.pts.length-1;i++){const a=e.pts[i],b=e.pts[i+1];o.push([(a[0]+b[0])/2,(a[1]+b[1])/2,'m'+i])}return o}
     case 'circle':return [[e.cx,e.cy,'mv'],[e.cx+e.r,e.cy,'r'],[e.cx,e.cy+e.r,'r'],[e.cx-e.r,e.cy,'r'],[e.cx,e.cy-e.r,'r']];
     case 'arc':{const m=e.a1+span(e.a1,e.a2)/2;return [[e.cx,e.cy,'mv'],[e.cx+e.r*Math.cos(e.a1),e.cy+e.r*Math.sin(e.a1),'a1'],[e.cx+e.r*Math.cos(e.a2),e.cy+e.r*Math.sin(e.a2),'a2'],[e.cx+e.r*Math.cos(m),e.cy+e.r*Math.sin(m),'r']]}
     case 'text':case 'mtext':return [[e.x,e.y,'mv']];
@@ -1955,6 +1958,159 @@ function buildDouble(pts,w,closed,label){
     if(bl>textW(label,h)*1.2)o.push(T_((p[0]+q[0])/2,(p[1]+q[1])/2,h,label,rot,'m'))}
   return o;
 }
+
+/* ---------- conductos paramétricos conectables ---------- */
+const DKIND={rect:{n:'Chapa rectangular',rnd:false,elbow:'arc'},circ:{n:'Chapa circular',rnd:true,elbow:'arc'},oval:{n:'Chapa ovoide',rnd:false,elbow:'arc'},fib:{n:'Fibra rectangular',rnd:false,elbow:'miter'},flexA:{n:'Flexible aislado',rnd:true,elbow:'flex'},flex:{n:'Flexible sin aislar',rnd:true,elbow:'flex'}};
+const DK_KW=[['R','rect'],['C','circ'],['V','oval'],['F','fib'],['X','flexA'],['S','flex']];
+function ductLabel(k,s){if(!s)return '';const W=fmt(s.w),H=fmt(s.h);return k==='circ'?'Ø'+W:k==='flexA'?'Ø'+W+' flex. aisl.':k==='flex'?'Ø'+W+' flex.':k==='oval'?'OV '+W+'x'+H:k==='fib'?W+'x'+H+' fibra':W+'x'+H}
+const secEq=(a,b)=>!!a&&!!b&&Math.abs(a.w-b.w)<1e-6&&Math.abs(a.h-b.h)<1e-6;
+/* datos de cada tramo: dirección, normal izquierda y semianchos izquierdo/derecho respecto al eje dibujado */
+function ductSegData(e){
+  const P=e.pts,S=[];
+  for(let i=0;i<P.length-1;i++){const s=e.sec[i]||e.sec[e.sec.length-1]||{w:200,h:200},w=s.w;let wl,wr;
+    if(i===0){wl=wr=w/2}else{const ps=S[i-1],tr=(e.tr&&e.tr[i])||'c';
+      if(secEq(s,ps.s)){wl=ps.wl;wr=ps.wr}else if(tr==='l'){wl=ps.wl;wr=w-ps.wl}else if(tr==='r'){wr=ps.wr;wl=w-ps.wr}else{const c=(ps.wl-ps.wr)/2;wl=w/2+c;wr=w/2-c}}
+    const a=P[i],b=P[i+1],L=dist(a,b)||1e-9,u=[(b[0]-a[0])/L,(b[1]-a[1])/L];S.push({a,b,L,u,n:[-u[1],u[0]],s,wl,wr})}
+  return S;
+}
+const ductPool=e=>model.includes(e)?model:ents;
+/* unión del extremo k del conducto br con el cuerpo del conducto main (derivación recta o zapato a 45°) */
+function ductJunction(br,k,main){
+  const n=br.pts.length;if(n<2||main===br||!main.pts||main.pts.length<2)return null;
+  const P=br.pts[k],Q=br.pts[k===0?1:n-2],ld=dist(P,Q);if(ld<1e-9)return null;const db=[(Q[0]-P[0])/ld,(Q[1]-P[1])/ld];
+  const S=ductSegData(main);let J=null;
+  for(let j=0;j<S.length;j++){const g=S[j],t=(P[0]-g.a[0])*g.u[0]+(P[1]-g.a[1])*g.u[1];if(t<-1e-6||t>g.L+1e-6)continue;
+    const d=(P[0]-g.a[0])*g.n[0]+(P[1]-g.a[1])*g.n[1];if(d>g.wl+1||d<-g.wr-1)continue;
+    if((j===0&&t<1)||(j===S.length-1&&t>g.L-1))continue;
+    if(Math.abs(g.u[0]*db[1]-g.u[1]*db[0])<0.25)continue;
+    J={g,t};break}
+  if(!J)return null;
+  const g=J.g,Pp=[g.a[0]+g.u[0]*J.t,g.a[1]+g.u[1]*J.t],sd=(g.u[0]*db[1]-g.u[1]*db[0])>0?1:-1,ow=sd>0?g.wl:-g.wr,Mw=[Pp[0]+g.n[0]*ow,Pp[1]+g.n[1]*ow];
+  const BS=ductSegData(br),bg=k===0?BS[0]:BS[BS.length-1],nb=[-db[1],db[0]],wP=k===0?bg.wl:bg.wr,wM=k===0?bg.wr:bg.wl,dn=db[0]*g.n[0]+db[1]*g.n[1];
+  const hit=off=>{const b=[Pp[0]+nb[0]*off,Pp[1]+nb[1]*off],tau=((Mw[0]-b[0])*g.n[0]+(Mw[1]-b[1])*g.n[1])/dn;return [b[0]+db[0]*tau,b[1]+db[1]*tau]};
+  const Ip=hit(wP),Im=hit(-wM),tp=(Ip[0]-g.a[0])*g.u[0]+(Ip[1]-g.a[1])*g.u[1],tm=(Im[0]-g.a[0])*g.u[0]+(Im[1]-g.a[1])*g.u[1];
+  const fit=(k===0?br.fit0:br.fit1)||'te';let flare=null,open=[Ip,Im];
+  if(fit==='45'){const up=tp<tm?'+':'-',Iu=up==='+'?Ip:Im,a=Math.max(100,(wP+wM)/4),P2=[Iu[0]-g.u[0]*a,Iu[1]-g.u[1]*a],Qf=[Iu[0]+db[0]*a,Iu[1]+db[1]*a];flare={side:up,P2,Q:Qf};open=[P2,up==='+'?Im:Ip]}
+  return {Pp,Ip,Im,flare,open};
+}
+function ductGeom(e){
+  const L=[],F=[],T=[],K=DKIND[e.kind]||DKIND.rect;if(!e.pts||e.pts.length<2)return {lines:L,fills:F,texts:T};
+  const pool=ductPool(e),others=pool.filter(o=>o!==e&&o.t==='duct'&&vis(o)),n=e.pts.length,P=e.pts.map(p=>p.slice());
+  const J=[null,null],ends=[0,n-1];
+  ends.forEach((k,ix)=>{for(const o of others){const j=ductJunction(e,k,o);if(j){J[ix]=j;P[k]=j.Pp;break}}});
+  const free=ends.map((k,ix)=>!J[ix]&&!others.some(o=>{const m=o.pts.length;return dist(o.pts[0],e.pts[k])<1||dist(o.pts[m-1],e.pts[k])<1}));
+  const S=ductSegData({pts:P,sec:e.sec,tr:e.tr}),m=S.length;
+  /* esquinas: codo curvo (chapa), inglete (fibra) o curva suave (flexible) */
+  const C=[];
+  for(let i=1;i<n-1;i++){const g1=S[i-1],g2=S[i],cr=g1.u[0]*g2.u[1]-g1.u[1]*g2.u[0],dt=g1.u[0]*g2.u[0]+g1.u[1]*g2.u[1],th=Math.atan2(Math.abs(cr),dt);
+    if(th<0.01){C[i]={type:'none',T:0};continue}const sg=cr>0?1:-1;
+    if(K.elbow==='miter'&&th<Math.PI*0.9){C[i]={type:'miter',T:0,th,s:sg};continue}
+    let R=K.elbow==='flex'?1.5*(g1.wl+g1.wr):Math.max(g1.wl,g1.wr)+(g1.wl+g1.wr)/2,Tt=R*Math.tan(Math.min(th,3.0)/2);
+    const lim=0.5*Math.min(g1.L,g2.L);if(Tt>lim){Tt=lim;R=Tt/Math.tan(Math.min(th,3.0)/2)}
+    C[i]={type:'arc',T:Tt,R,th,s:sg}}
+  const sm=[],push=(p,nv,wl,wr,x)=>sm.push({p,n:nv,wl,wr,x}),reg=[];
+  for(let i=0;i<m;i++){const g=S[i],a0=i>0?C[i].T:0,b0=Math.max(a0,g.L-(i<m-1?C[i+1].T:0)),at=t=>[g.a[0]+g.u[0]*t,g.a[1]+g.u[1]*t];let sa=a0;
+    if(i===0)push(at(0),g.n,g.wl,g.wr,'cap');
+    if(i>0&&!secEq(g.s,S[i-1].s)){const pv=S[i-1],dm=Math.max(Math.abs(g.wl-pv.wl),Math.abs(g.wr-pv.wr));let Lt=dm>1e-6?Math.max(100,dm/Math.tan(30*D2R)):0;Lt=Math.min(Lt,0.6*Math.max(0,b0-a0));
+      const lst=sm[sm.length-1];if(lst&&!lst.x)lst.x='x';push(at(a0+Lt),g.n,g.wl,g.wr,'x');sa=a0+Lt}
+    push(at(b0),g.n,g.wl,g.wr,i===m-1?'cap':(C[i+1].type==='arc'?'x':null));reg.push([sa,b0]);
+    if(i<m-1){const c=C[i+1],g2=S[i+1];
+      if(c.type==='miter'){const nn=[g.n[0]+g2.n[0],g.n[1]+g2.n[1]],l=Math.hypot(nn[0],nn[1])||1,k=1/Math.cos(c.th/2);push(g.b,[nn[0]/l*k,nn[1]/l*k],g.wl,g.wr,'x')}
+      else if(c.type==='arc'){const A=at(b0),Cc=[A[0]+g.n[0]*c.R*c.s,A[1]+g.n[1]*c.R*c.s],ar=Math.atan2(A[1]-Cc[1],A[0]-Cc[0]),N=Math.max(6,Math.ceil(c.th/(Math.PI/24)));
+        for(let q=1;q<=N;q++){const an=ar+c.s*c.th*q/N,p=[Cc[0]+c.R*Math.cos(an),Cc[1]+c.R*Math.sin(an)];push(p,[c.s*(Cc[0]-p[0])/c.R,c.s*(Cc[1]-p[1])/c.R],g.wl,g.wr,q===N&&K.elbow!=='flex'?'x':null)}}}
+  }
+  const flex=K.elbow==='flex';let smp=sm;
+  if(flex){/* remuestreo para la onda del flexible */
+    const D0=S[0].wl+S[0].wr,step=Math.max(6,D0*0.07),out=[sm[0]];
+    for(let q=0;q<sm.length-1;q++){const A=sm[q],B=sm[q+1],d=dist(A.p,B.p),N=Math.max(1,Math.round(d/step));for(let r=1;r<=N;r++){const f=r/N,nv=[A.n[0]+(B.n[0]-A.n[0])*f,A.n[1]+(B.n[1]-A.n[1])*f],l=Math.hypot(nv[0],nv[1])||1;out.push({p:[A.p[0]+(B.p[0]-A.p[0])*f,A.p[1]+(B.p[1]-A.p[1])*f],n:[nv[0]/l,nv[1]/l],wl:A.wl+(B.wl-A.wl)*f,wr:A.wr+(B.wr-A.wr)*f,x:null})}}
+    out[out.length-1].x='cap';smp=out}
+  const D0=S[0].wl+S[0].wr,amp=flex?Math.max(4,D0*0.045):0;
+  const wv=q=>flex&&q>0&&q<smp.length-1?amp*Math.sin(q*Math.PI/3):0;
+  let Lw=smp.map((s,q)=>{const w=s.wl+wv(q);return [s.p[0]+s.n[0]*w,s.p[1]+s.n[1]*w]}),
+      Rw=smp.map((s,q)=>{const w=s.wr+wv(q);return [s.p[0]-s.n[0]*w,s.p[1]-s.n[1]*w]});
+  const xl=smp.map(s=>s.x);
+  /* recorte contra el conducto principal en las derivaciones */
+  if(J[0]){Lw[0]=J[0].Ip;Rw[0]=J[0].Im;const f=J[0].flare;if(f){if(f.side==='+')Lw=[f.P2,f.Q,...Lw.slice(1)];else Rw=[f.P2,f.Q,...Rw.slice(1)]}}
+  if(J[1]){const z=n-1;Lw[Lw.length-1]=J[1].Im;Rw[Rw.length-1]=J[1].Ip;const f=J[1].flare;if(f){if(f.side==='-')Lw=[...Lw.slice(0,-1),f.Q,f.P2];else Rw=[...Rw.slice(0,-1),f.Q,f.P2]}}
+  const W=[];const pl=a=>{for(let q=0;q<a.length-1;q++)if(dist(a[q],a[q+1])>1e-6)W.push(SG(a[q],a[q+1]))};pl(Lw);pl(Rw);
+  /* aberturas en este conducto donde le acometen otros */
+  if(!flex){const bk=[];for(const o of others){const mo=o.pts.length;for(const k of [0,mo-1]){const j=ductJunction(o,k,e);if(j)bk.push(j.open)}}L.push(...(bk.length?applyBreaks(W,bk,1):W))}else L.push(...W);
+  /* líneas de unión (codos, transiciones) y tapas en extremos libres */
+  const lf=Lw.length-1,rf=Rw.length-1;
+  if(free[0]&&!J[0])L.push(SG(Lw[0],Rw[0]));if(free[1]&&!J[1])L.push(SG(Lw[lf],Rw[rf]));
+  if(!flex)for(let q=1;q<smp.length-1;q++)if(xl[q]==='x'){const s=smp[q];L.push(SG([s.p[0]+s.n[0]*s.wl,s.p[1]+s.n[1]*s.wl],[s.p[0]-s.n[0]*s.wr,s.p[1]-s.n[1]*s.wr]))}
+  /* aislamiento del flexible: contorno exterior a trazos */
+  if(e.kind==='flexA'){const ins=Math.max(25,D0*0.12),dash=Math.max(40,D0*0.22),gap=dash*0.6;
+    for(const sd of [1,-1]){const o=smp.map(s=>{const w=(sd>0?s.wl:s.wr)+amp+ins;return [s.p[0]+s.n[0]*w*sd,s.p[1]+s.n[1]*w*sd]});let on=true,rem=dash;
+      for(let q=0;q<o.length-1;q++){let A=o[q];const B=o[q+1];let d=dist(A,B);while(d>1e-9){const st=Math.min(rem,d),f=st/d,Cp=[A[0]+(B[0]-A[0])*f,A[1]+(B[1]-A[1])*f];if(on)L.push(SG(A,Cp));A=Cp;d-=st;rem-=st;if(rem<=1e-9){on=!on;rem=on?dash:gap}}}}}
+  /* rótulos: uno por cada tramo de sección constante, en su parte recta más larga */
+  if(e.lbl!==false){let i=0;while(i<m){let j=i;while(j+1<m&&secEq(S[j+1].s,S[i].s))j++;let bi=-1,bl=0;for(let q=i;q<=j;q++){const r=reg[q],l=r[1]-r[0];if(l>bl){bl=l;bi=q}}
+      if(bi>=0){const g=S[bi],r=reg[bi],str=ductLabel(e.kind,g.s),w=g.wl+g.wr,th=Math.min(150,Math.max(60,w*0.35));
+        if(bl>textW(str,th)*1.15){const t=(r[0]+r[1])/2,off=th>w*0.8?g.wl+th*0.8:(g.wl-g.wr)/2,rot=readable(Math.atan2(g.u[1],g.u[0]));T.push(T_(g.a[0]+g.u[0]*t+g.n[0]*off,g.a[1]+g.u[1]*t+g.n[1]*off,th,str,rot,'m'))}}
+      i=j+1}}
+  return {lines:L,fills:F,texts:T};
+}
+function ductReverse(e){const m=e.sec.length,ot=e.tr||[],nt=new Array(m).fill('c'),sw=x=>x==='l'?'r':x==='r'?'l':'c';for(let i=1;i<m;i++)nt[m-i]=sw(ot[i]);e.pts.reverse();e.sec.reverse();e.tr=nt;[e.fit0,e.fit1]=[e.fit1,e.fit0];if(!e.fit0)delete e.fit0;if(!e.fit1)delete e.fit1;delete e._bb}
+function ductAt(p,skip){
+  const tolW=S.aperture/view.s;let best=null;
+  for(const o of ents){if(o.t!=='duct'||o===skip||!vis(o))continue;const D=ductSegData(o),n=o.pts.length;
+    for(const k of [0,n-1]){const g=k===0?D[0]:D[D.length-1],r=Math.max((g.wl+g.wr)/2,tolW),d=dist(p,o.pts[k]);if(d<=r&&(!best||d<best.d))best={e:o,end:k,d,p:o.pts[k].slice()}}
+    if(best&&best.e===o)continue;
+    for(let j=0;j<D.length;j++){const g=D[j],t=(p[0]-g.a[0])*g.u[0]+(p[1]-g.a[1])*g.u[1];if(t<0||t>g.L)continue;const d=(p[0]-g.a[0])*g.n[0]+(p[1]-g.a[1])*g.n[1];if(d>g.wl+tolW||d<-g.wr-tolW)continue;
+      const dd=Math.abs(d-(g.wl-g.wr)/2);if(!best||dd<best.d)best={e:o,seg:j,d:dd,p:[g.a[0]+g.u[0]*t,g.a[1]+g.u[1]*t]}}}
+  return best;
+}
+async function askDuctKind(cur){const k=await gkw(`Tipo de conducto [Rectangular/Circular/oVoide/Fibra/fleXible aislado/flexible Sin aislar] <${DKIND[cur].n}>`,DK_KW.map(x=>x[0]),DK_KW.find(x=>x[1]===cur)[0]);if(k==null)return null;const f=DK_KW.find(x=>x[0]===k);return f?f[1]:null}
+async function askDuctSec(kind,def){
+  if(DKIND[kind].rnd){const d=await gnum('Diámetro en mm',def.w);if(!(d>0))return null;return {w:d,h:d}}
+  for(;;){const t=await gtxt(`Ancho x alto en mm <${fmt(def.w)}x${fmt(def.h)}>`,`${fmt(def.w)}x${fmt(def.h)}`);if(t==null)return null;
+    const mm=String(t).replace(/,/g,'.').match(/^\s*(\d+(?:\.\d+)?)\s*[x×X*]\s*(\d+(?:\.\d+)?)\s*$/);if(mm&&+mm[1]>0&&+mm[2]>0)return {w:+mm[1],h:+mm[2]};msg('Escriba la sección como ancho x alto, por ejemplo 400x300','e')}
+}
+const fitAsk=async()=>(await gkw('Unión con el conducto [Recta/Zapato 45°] <Recta>',['R','Z'],'R'))==='Z'?'45':'te';
+async function cDuct(){
+  ensureLayer('CONDUCTOS',4,{lw:0.35});
+  let kind=DEF.dk,sec={...DEF.ds[kind]},start;
+  for(;;){const q=await gp(`Punto inicial del conducto o [Tipo/Sección] <${DKIND[kind].n} ${ductLabel(kind,sec)}>`,{kws:['T','S']});
+    if(q==='T'){const k=await askDuctKind(kind);if(k){kind=DEF.dk=k;const s2=await askDuctSec(kind,DEF.ds[kind]);if(s2){sec=s2;DEF.ds[kind]={...s2}}else sec={...DEF.ds[kind]}}continue}
+    if(q==='S'){const s2=await askDuctSec(kind,sec);if(s2){sec=s2;DEF.ds[kind]={...s2}}continue}
+    start=q;break}
+  const hit=ductAt(start);let cont=null,W;
+  if(hit&&hit.end!=null&&hit.e.kind===kind){cont=hit.e;mod();if(hit.end===0)ductReverse(cont);W={...clone(cont),pts:cont.pts.map(p=>p.slice()),sec:cont.sec.map(x=>({...x})),tr:(cont.tr||[]).slice()};while(W.tr.length<W.sec.length)W.tr.push('c');msg('Continúa el conducto existente ('+ductLabel(kind,cont.sec[cont.sec.length-1])+')')}
+  else{const p0=hit?hit.p:start;W={t:'duct',kind,pts:[p0.slice()],sec:[],tr:[],layer:'CONDUCTOS'};
+    if(hit&&hit.end!=null)msg('Conectado al extremo del conducto existente');else if(hit){W.fit0=await fitAsk();msg('Derivación desde el conducto existente')}}
+  const n0=W.pts.length;let nextSec=cont?(secEq(sec,W.sec[W.sec.length-1])?null:sec):sec,nextTr='c';
+  for(;;){
+    const last=W.pts[W.pts.length-1],cs=nextSec||W.sec[W.sec.length-1];
+    const q=await gp(`Siguiente punto o [Sección/Transición/desHacer] <${ductLabel(kind,cs)}> (Intro para terminar)`,{base:last,kws:['S','T','H','U'],enter:true,
+      prev:c=>{const k={...W,pts:[...W.pts,c],sec:[...W.sec,cs],tr:[...W.tr,nextTr]};delete k.id;return [k]}});
+    if(q===null)break;
+    if(q==='S'){const s2=await askDuctSec(kind,cs);if(s2){nextSec=s2;DEF.ds[kind]={...s2}}continue}
+    if(q==='T'){const t=await gkw('Transición en el próximo cambio de sección [Centrada/Izquierda recta/Derecha recta] <Centrada>',['C','I','D'],'C');nextTr=t==='I'?'l':t==='D'?'r':'c';continue}
+    if(q==='H'||q==='U'){if(W.pts.length>n0){W.pts.pop();W.sec.pop();W.tr.pop()}else msg('No hay más tramos que deshacer');continue}
+    let p=q;const h=ductAt(p,cont);let endHere=false;
+    if(h&&W.pts.length>=1&&dist(h.p,last)>1){p=h.p;endHere=true;if(h.end==null){const ld=dist(p,last);if(ld>1)W.fit1=await fitAsk()}}
+    W.pts.push(p.slice());W.sec.push({...cs});W.tr.push(nextTr);nextSec=null;nextTr='c';
+    if(endHere){msg(h.end==null?'Conducto conectado al conducto existente':'Conducto unido al extremo del existente');break}
+  }
+  if(W.pts.length<2)return;
+  if(cont){mod();cont.pts=W.pts;cont.sec=W.sec;cont.tr=W.tr;if(W.fit1)cont.fit1=W.fit1;delete cont._bb}else add(W);
+}
+async function cDuctEdit(pre,pp){
+  let e=pre,p=pp||null;
+  if(!e){for(;;){const r=await gpick('Designe el tramo de conducto que desea modificar');if(!r)return;if(r.e.t==='duct'){e=r.e;p=r.p;break}msg('Designe un conducto','e')}}
+  const D=ductSegData(e);let i=0;if(p){let bd=Infinity;D.forEach((g,j)=>{const d=dSeg(p,[g.a[0],g.a[1],g.b[0],g.b[1]]);if(d<bd){bd=d;i=j}})}
+  sel.clear();sel.add(e.id);draw();
+  for(;;){
+    const k=await gkw(`${DKIND[e.kind].n}, tramo ${i+1} de ${e.sec.length}: ${ductLabel(e.kind,e.sec[i])}. Indique una opción [Sección/Tipo/tRansición/rótuLo/Unión] <Salir>`,['S','T','R','L','U'],null);
+    if(k==null)break;
+    if(k==='S'){const s2=await askDuctSec(e.kind,e.sec[i]);if(!s2)continue;const a=await gkw('Aplicar a [Tramo/Siguientes/tOdos] <Tramo>',['T','S','O'],'T');mod();
+      const from=a==='O'?0:i,to=a==='T'?i:e.sec.length-1;for(let q=from;q<=to;q++)e.sec[q]={...s2};delete e._bb;draw();continue}
+    if(k==='T'){const nk=await askDuctKind(e.kind);if(!nk)continue;let s2=e.sec[0];if(DKIND[nk].rnd!==DKIND[e.kind].rnd){s2=await askDuctSec(nk,DEF.ds[nk]);if(!s2)continue}mod();e.kind=nk;if(s2!==e.sec[0])e.sec=e.sec.map(()=>({...s2}));delete e._bb;draw();continue}
+    if(k==='R'){if(i===0){msg('El primer tramo no tiene transición de entrada','e');continue}const t=await gkw('Transición de entrada a este tramo [Centrada/Izquierda recta/Derecha recta] <Centrada>',['C','I','D'],'C');mod();e.tr=e.tr||[];e.tr[i]=t==='I'?'l':t==='D'?'r':'c';delete e._bb;draw();continue}
+    if(k==='L'){mod();e.lbl=e.lbl===false?true:false;msg(e.lbl===false?'Rótulos ocultos':'Rótulos visibles');draw();continue}
+    if(k==='U'){const ex=await gkw('¿Qué extremo? [Inicial/Final] <Inicial>',['I','F'],'I');const f=await fitAsk();mod();if(ex==='F')e.fit1=f;else e.fit0=f;draw();continue}
+  }
+}
 async function cDouble(duct){
   const layer=duct?'CONDUCTOS':'MUROS';ensureLayer(layer,duct?4:7);
   const w=await gnum(duct?'Ancho del conducto en mm':'Espesor del muro en mm',duct?DEF.ductW:DEF.wallW);if(!(w>0))return;
@@ -2200,7 +2356,7 @@ async function cStretch(){
   const ins=p=>inRect(p,r);
   const apply=(e,dx,dy)=>{const T=Tm(dx,dy),q=bb(e);if(q[0]>=r[0]&&q[2]<=r[2]&&q[1]>=r[1]&&q[3]<=r[3]){applyM(e,T);return}
     const mv=p=>ins(p)?[p[0]+dx,p[1]+dy]:p;delete e._bb;
-    switch(e.t){case 'line':[e.x1,e.y1]=mv([e.x1,e.y1]);[e.x2,e.y2]=mv([e.x2,e.y2]);break;case 'pline':e.pts=e.pts.map(mv);break;case 'ldr':e.pts=e.pts.map(mv);break;
+    switch(e.t){case 'line':[e.x1,e.y1]=mv([e.x1,e.y1]);[e.x2,e.y2]=mv([e.x2,e.y2]);break;case 'pline':e.pts=e.pts.map(mv);break;case 'ldr':case 'duct':e.pts=e.pts.map(mv);break;
       case 'dim':[e.x1,e.y1]=mv([e.x1,e.y1]);[e.x2,e.y2]=mv([e.x2,e.y2]);[e.x3,e.y3]=mv([e.x3,e.y3]);if(e.tp)e.tp=mv(e.tp);break;case 'rdim':[e.x3,e.y3]=mv([e.x3,e.y3]);if(e.jog){[e.ox,e.oy]=mv([e.ox,e.oy]);[e.jx,e.jy]=mv([e.jx,e.jy])}break;case 'adim':[e.cx,e.cy]=mv([e.cx,e.cy]);[e.x1,e.y1]=mv([e.x1,e.y1]);[e.x2,e.y2]=mv([e.x2,e.y2]);[e.x3,e.y3]=mv([e.x3,e.y3]);break;
       case 'circle':case 'arc':if(ins([e.cx,e.cy]))applyM(e,T);break;case 'text':case 'mtext':if(ins([e.x,e.y]))applyM(e,T);break;
       case 'vp':{const nx1=ins([e.x1,e.y1])||ins([e.x1,e.y2]),nx2=ins([e.x2,e.y1])||ins([e.x2,e.y2]),ny1=ins([e.x1,e.y1])||ins([e.x2,e.y1]),ny2=ins([e.x1,e.y2])||ins([e.x2,e.y2]);if(nx1)e.x1+=dx;if(nx2)e.x2+=dx;if(ny1)e.y1+=dy;if(ny2)e.y2+=dy;break}}};
@@ -2539,7 +2695,7 @@ function pdfBytes(sh,opt){
       case 'pline':path(e.pts.map(p=>T(p[0],p[1])),e.closed);break;
       case 'circle':case 'arc':{const sp=e.t==='circle'?TAU:span(e.a1,e.a2),a0=e.t==='circle'?0:e.a1,n=Math.min(360,Math.max(12,Math.ceil(e.r*sc*sp/0.4))),pts=[];for(let i=0;i<=n;i++){const a=a0+sp*i/n;pts.push(T(e.cx+e.r*Math.cos(a),e.cy+e.r*Math.sin(a)))}path(pts,false);break}
       case 'text':txt(e,T,sc,null);break;
-      case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':{const g=comp(e),pp=fl=>fl.map((p,i)=>{const q=T(p[0],p[1]);return f(q[0]*K)+' '+f(q[1]*K)+(i?' l':' m')}).join(' ')+' h',st=o=>{const a=[];if(o.c!=null){const c=pc(o.c,e);a.push(c+' RG '+c+' rg')}if(o.lw!=null&&opt.lw)a.push(f((o.lw<0?lwOf({layer:e.layer}):o.lw)*K)+' w');if(o.lt){const n=ltName(o.lt,e);if(n)a.push('['+LTD[n].p.map(v=>f(Math.abs(v)*(e.lts||1)*K)).join(' ')+'] 0 d')}return a.length?'q '+a.join(' ')+' ':''};
+      case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':{const g=comp(e),pp=fl=>fl.map((p,i)=>{const q=T(p[0],p[1]);return f(q[0]*K)+' '+f(q[1]*K)+(i?' l':' m')}).join(' ')+' h',st=o=>{const a=[];if(o.c!=null){const c=pc(o.c,e);a.push(c+' RG '+c+' rg')}if(o.lw!=null&&opt.lw)a.push(f((o.lw<0?lwOf({layer:e.layer}):o.lw)*K)+' w');if(o.lt){const n=ltName(o.lt,e);if(n)a.push('['+LTD[n].p.map(v=>f(Math.abs(v)*(e.lts||1)*K)).join(' ')+'] 0 d')}return a.length?'q '+a.join(' ')+' ':''};
         for(const s of g.lines){const q=st(s);C.push(q+f(T(s[0],s[1])[0]*K)+' '+f(T(s[0],s[1])[1]*K)+' m '+f(T(s[2],s[3])[0]*K)+' '+f(T(s[2],s[3])[1]*K)+' l S'+(q?' Q':''))}
         for(const fl of g.fills)if(fl.mask)C.push('q '+(fl.bg?'1 1 1':pc(fl.c,e))+' rg '+pp(fl)+' f Q');
         for(const fl of g.fills)if(!fl.mask){const q=st(fl);C.push(q+pp(fl)+(fl.o?' S':' f')+(q?' Q':''))}
@@ -2904,7 +3060,8 @@ const CMDS=[
   ['LONGITUD','LEN LENGTHEN','Longitud','Modificar',cLengthen,'Cambia la longitud de líneas y arcos: Incremento, Porcentaje, Total o DInámica.'],
   ['ALINEAR','AL ALIGN','Alinear','Modificar',cAlign,'Mueve, gira y opcionalmente escala con dos pares de puntos.'],
   ['BORRA','E ERASE SUPR','Borrar','Modificar',cErase,'Borra objetos (también tecla Supr).'],
-  ['CONDUCTO','DU DUCTO','Conducto','Clima',()=>cDouble(true),'Conducto a doble línea con rótulo ancho×alto, en la capa CONDUCTOS.'],
+  ['CONDUCTO','DU DUCTO','Conducto','Clima',cDuct,'Conducto conectable: chapa rectangular, circular u ovoide, fibra, flexible aislado o sin aislar. Cambios de sección, codos y derivaciones automáticos.'],
+  ['EDITCONDUCTO','EDU DUE','Editar conducto','Clima',()=>cDuctEdit(),'Cambia la sección de un tramo, el tipo, la transición, los rótulos o la unión de un conducto. También con doble clic.'],
   ['MURO','MU WALL','Muro','Clima',()=>cDouble(false),'Muro a doble línea centrado en el eje, en la capa MUROS. C cierra el contorno.'],
   ['TUBERIA','TU','Tubería','Clima',()=>cPline('TUBERIAS',30),'Polilínea en la capa TUBERIAS (frigorífica, condensados…).'],
   ['DIFUSOR','DIF','Difusor','Clima',()=>cSym('DIF'),'Difusor cuadrado. G gira 90°. Inserta varios seguidos.'],
@@ -3027,6 +3184,7 @@ BORRACOTAS:`<path d="M3 5v8M15 5v8M3 10h12"/><path d="M15 15l6 6M21 15l-6 6" str
 DIRECTRIZM:`<path d="M3 20l8-8h4"/><path d="M3 20l1-4 3 3z" fill="${IA}" stroke="${IA}"/><path d="M16 9h6M16 13h5" stroke="${IY}"/>`,
 DIST:`<rect x="2" y="8" width="20" height="8" rx="1"/><path d="M6 8v3M10 8v4M14 8v3M18 8v4" stroke="${IA}"/>`,
 CONDUCTO:`<path d="M2 7h15v14"/><path d="M2 13h9v8" stroke="${IA}"/>`,
+EDITCONDUCTO:`<path d="M2 8h12v13"/><path d="M2 14h6v7"/><path d="M14 10l6-6 2 2-6 6h-2z" stroke="${IA}"/>`,
 MURO:`<rect x="2" y="8" width="20" height="8"/><path d="M5 16l5-8M10 16l5-8M15 16l5-8" stroke="${IA}"/>`,
 TUBERIA:`<path d="M3 18h7V6h11" stroke="${IY}" stroke-dasharray="3 2"/><circle cx="3" cy="18" r="1.6" fill="${IY}" stroke="${IY}"/>`,
 DIFUSOR:`<rect x="3" y="3" width="18" height="18"/><rect x="8" y="8" width="8" height="8" stroke="${IG}"/><path d="M3 3l5 5M21 3l-5 5M3 21l5-5M21 21l-5-5" stroke="${IG}"/>`,
@@ -3080,7 +3238,7 @@ const RIB={
     {t:'Utilidades',cols:['MEDIRGEOM',['AREA','LIST','ID']]},
     {t:'Portapapeles',cols:['PEGARPP',['COPIARPP']]}],
   insertar:[{t:'Importar',cols:['IMPORTARPDF','ABRIR']}],
-  clima:[{t:'Conductos y redes',cols:['CONDUCTO','TUBERIA','MURO']},{t:'Difusión',cols:['DIFUSOR','REJILLA']},{t:'Equipos',cols:['UI','CASSETTE','UE']}],
+  clima:[{t:'Conductos y redes',cols:['CONDUCTO','EDITCONDUCTO','TUBERIA','MURO']},{t:'Difusión',cols:['DIFUSOR','REJILLA']},{t:'Equipos',cols:['UI','CASSETTE','UE']}],
   anotar:[{t:'Texto',cols:['TEXTOM',['TEXTO','DDEDIC'],{combo:'tsty'}]},{t:'Cotas',cols:['ACOLINEAL',['ACOALINEADA','ACOANGULO','ACORADIO'],['ACODIAMETRO','ACOCONTINUA','ACOLINEABASE'],['ACOCENTRO','ACOREMPLAZAR','!BORRACOTAS'],['ACOARCO','ACORECODO','ACOLINRECOD'],['ACOCORTE','ACOESPAC'],{combo:'dsty'}]},{t:'Directrices',cols:['DIRECTRIZM',{combo:'msty'}]},{t:'Medir',cols:['DIST']}],
   pres:[{t:'Presentación',cols:['PRESENTACION','CONFIGPAG']},{t:'Ventanas de presentación',cols:['VMULT',['ESPACIOM','ESPACIOP']]}],
   salida:[{t:'Trazar',cols:['TRAZAR']},{t:'Exportar',cols:['GUARDAR','PNG']}],
@@ -3291,7 +3449,7 @@ cv.addEventListener('dblclick',()=>{
   if(space!=='model'){const pv=layouts[space].pv,pp=[pv.cx+(mouseS[0]-W/2)/pv.s,pv.cy-(mouseS[1]-H/2)/pv.s];
     if(act){if(!inRect(pp,vpRect(act))){deact();return}}
     else{const e=pick(mouseW);if(e&&TXTT[e.t]){sel.clear();editText(e);return}const v=layouts[space].ents.find(o=>o.t==='vp'&&inRect(pp,vpRect(o)));if(v)setAct(v);return}}
-  const e=pick(mouseW);if(e&&TXTT[e.t]){sel.clear();editText(e)}else if(e){sel.clear();for(const o of groupOf(e))sel.add(o.id);togglePal(true);draw()}});
+  const e=pick(mouseW);if(e&&e.t==='duct'){const p=mouseW.slice();run({n:'EDITCONDUCTO',label:'Editar conducto',f:()=>cDuctEdit(e,p)});return}if(e&&TXTT[e.t]){sel.clear();editText(e)}else if(e){sel.clear();for(const o of groupOf(e))sel.add(o.id);togglePal(true);draw()}});
 
 /* ---------- teclado ---------- */
 document.addEventListener('keydown',ev=>{
@@ -3335,10 +3493,10 @@ function sample(){
   A(buildDouble([[0,0],[9000,0],[9000,6000],[0,6000]],200,true,''),'MUROS',ngid++);
   A(buildDouble([[5500,100],[5500,5900]],100,false,''),'MUROS',ngid++);
   A(place('UI',1000,0,[7300,4900]),'EQUIPOS',ngid++);
-  A(buildDouble([[6800,4900],[1300,4900]],400,false,'400x300'),'CONDUCTOS',ngid++);
-  A(buildDouble([[1800,4700],[1800,3900]],250,false,''),'CONDUCTOS',ngid++);
-  A(buildDouble([[4000,4700],[4000,3900]],250,false,''),'CONDUCTOS',ngid++);
-  A(buildDouble([[7300,4600],[7300,2800]],250,false,''),'CONDUCTOS',ngid++);
+  A([{t:'duct',kind:'rect',pts:[[6800,4900],[3000,4900],[1300,4900]],sec:[{w:400,h:300},{w:300,h:300}],tr:['c','c']}],'CONDUCTOS');
+  A([{t:'duct',kind:'rect',pts:[[1800,4900],[1800,3900]],sec:[{w:250,h:200}],tr:['c'],fit0:'te'}],'CONDUCTOS');
+  A([{t:'duct',kind:'rect',pts:[[4000,4900],[4000,3900]],sec:[{w:250,h:200}],tr:['c'],fit0:'45'}],'CONDUCTOS');
+  A([{t:'duct',kind:'flexA',pts:[[7300,4600],[7300,3600],[7300,2800]],sec:[{w:200,h:200},{w:200,h:200}],tr:['c','c']}],'CONDUCTOS');
   for(const p of [[1800,3600],[4000,3600],[7300,2500]])A(place('DIF',600,0,p),'DIFUSORES',ngid++);
   A(place('REJ',600,0,[3000,600]),'DIFUSORES',ngid++);
   A(place('UE',900,90,[10300,3000]),'EQUIPOS',ngid++);
