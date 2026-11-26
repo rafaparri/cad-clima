@@ -268,7 +268,7 @@ let LTD=JSON.parse(JSON.stringify(LTD0)),LTS=50,CELT='BYLAYER',CELTS=1;
 const LWS=[0.05,0.09,0.13,0.15,0.18,0.2,0.25,0.3,0.35,0.4,0.5,0.53,0.6,0.7,0.8,1,1.2,1.4,2];
 const PAPERS={A4:[297,210],A3:[420,297],A2:[594,420],A1:[841,594],A0:[1189,841]};
 const DENS=[1,2,5,10,20,25,50,75,100,125,150,200,250,300,400,500,750,1000,1500,2000,2500,5000];
-const SDEF={ortho:false,osnap:true,grid:true,light:false,polar:false,otrack:true,polarInc:90,aperture:10,lwt:true,tab:'inicio',dyn:true,curSize:5,curCol:'#ffffff',curColP:'#000000',curTint:false,pick:5,snapSz:6,snapCol:'#ffb000',snapTip:true,trkFull:true,trkCol:'#4fd16a',gripSz:5,gripCol:'#2f8fff',gripHov:'#ff7f7f',gripHot:'#ff0000',gripMenu:true,gripLim:300,uiTheme:'dark',ui:100,cmdFs:14,bgModel:'#212830',bgPaper:'#8d939b',ribMin:false,clean:false,ftabs:false,rcDef:'menu',rcEdit:'menu',rcCmd:'menuopt',rcTime:false,rcMs:250};
+const SDEF={vSteel:9,vFib:6,vFlex:4,ortho:false,osnap:true,grid:true,light:false,polar:false,otrack:true,polarInc:90,aperture:10,lwt:true,tab:'inicio',dyn:true,curSize:5,curCol:'#ffffff',curColP:'#000000',curTint:false,pick:5,snapSz:6,snapCol:'#ffb000',snapTip:true,trkFull:true,trkCol:'#4fd16a',gripSz:5,gripCol:'#2f8fff',gripHov:'#ff7f7f',gripHot:'#ff0000',gripMenu:true,gripLim:300,uiTheme:'dark',ui:100,cmdFs:14,bgModel:'#212830',bgPaper:'#8d939b',ribMin:false,clean:false,ftabs:false,rcDef:'menu',rcEdit:'menu',rcCmd:'menuopt',rcTime:false,rcMs:250};
 const S={...SDEF};let CECOL=null,CELW=null,docName='Plano1';
 let mouseS=[0,0],mouseW=[0,0],snap=null,inCanvas=false,lastPt=[0,0];
 let req=null,running=null,lastCmd=null,win=null,pan=null;
@@ -1984,7 +1984,7 @@ function ductJunction(br,k,main){
     const d=(P[0]-g.a[0])*g.n[0]+(P[1]-g.a[1])*g.n[1];if(d>g.wl+1||d<-g.wr-1)continue;
     if((j===0&&t<1)||(j===S.length-1&&t>g.L-1))continue;
     if(Math.abs(g.u[0]*db[1]-g.u[1]*db[0])<0.25)continue;
-    J={g,t};break}
+    J={g,t,j};break}
   if(!J)return null;
   const g=J.g,Pp=[g.a[0]+g.u[0]*J.t,g.a[1]+g.u[1]*J.t],sd=(g.u[0]*db[1]-g.u[1]*db[0])>0?1:-1,ow=sd>0?g.wl:-g.wr,Mw=[Pp[0]+g.n[0]*ow,Pp[1]+g.n[1]*ow];
   const BS=ductSegData(br),bg=k===0?BS[0]:BS[BS.length-1],nb=[-db[1],db[0]],wP=k===0?bg.wl:bg.wr,wM=k===0?bg.wr:bg.wl,dn=db[0]*g.n[0]+db[1]*g.n[1];
@@ -1992,7 +1992,7 @@ function ductJunction(br,k,main){
   const Ip=hit(wP),Im=hit(-wM),tp=(Ip[0]-g.a[0])*g.u[0]+(Ip[1]-g.a[1])*g.u[1],tm=(Im[0]-g.a[0])*g.u[0]+(Im[1]-g.a[1])*g.u[1];
   const fit=(k===0?br.fit0:br.fit1)||'te';let flare=null,open=[Ip,Im];
   if(fit==='45'){const up=tp<tm?'+':'-',Iu=up==='+'?Ip:Im,a=Math.max(100,(wP+wM)/4),P2=[Iu[0]-g.u[0]*a,Iu[1]-g.u[1]*a],Qf=[Iu[0]+db[0]*a,Iu[1]+db[1]*a];flare={side:up,P2,Q:Qf};open=[P2,up==='+'?Im:Ip]}
-  return {Pp,Ip,Im,flare,open};
+  return {Pp,Ip,Im,flare,open,mseg:J.j,mt:J.t,wb:wP+wM};
 }
 function ductGeom(e){
   const L=[],F=[],T=[],K=DKIND[e.kind]||DKIND.rect;if(!e.pts||e.pts.length<2)return {lines:L,fills:F,texts:T};
@@ -2096,18 +2096,141 @@ async function cDuct(){
   if(W.pts.length<2)return;
   if(cont){mod();cont.pts=W.pts;cont.sec=W.sec;cont.tr=W.tr;if(W.fit1)cont.fit1=W.fit1;delete cont._bb}else add(W);
 }
+
+/* ---------- predimensionado de conductos por velocidad máxima ---------- */
+const vDefOf=kind=>kind==='fib'?S.vFib:(kind==='flex'||kind==='flexA')?S.vFlex:S.vSteel;
+const segV=(e,i)=>(e.vmax&&e.vmax[i]>0)?e.vmax[i]:vDefOf(e.kind);
+const STD_CIRC=[100,125,150,160,180,200,224,250,280,300,315,355,400,450,500,560,630,710,800,900,1000,1120,1250,1400,1600];
+const STD_FLEX=[82,102,127,152,160,180,203,229,254,305,315,356,406,457,508];
+function sizeFor(kind,Q,v,cur){
+  const A=Q/3600/v*1e6; /* mm² */
+  if(kind==='circ'){const d=Math.sqrt(4*A/Math.PI),D=STD_CIRC.find(x=>x>=d-0.5)||Math.ceil(d/50)*50;return {w:D,h:D}}
+  if(kind==='flex'||kind==='flexA'){const d=Math.sqrt(4*A/Math.PI),D=STD_FLEX.find(x=>x>=d-0.5);return D?{w:D,h:D}:{w:Math.ceil(d/50)*50,h:Math.ceil(d/50)*50}}
+  const h=cur.h>0?cur.h:300;
+  if(kind==='oval'){const w=Math.max(h,(A-Math.PI*h*h/4)/h+h);return {w:Math.max(h,Math.ceil(w/50)*50),h}}
+  const w=Math.max(100,Math.ceil(A/h/50)*50);if(w>=h)return {w,h};
+  /* caudal pequeño: sin bajar del alto se quedaría más estrecho que alto; se hace cuadrado */
+  const q=Math.max(100,Math.ceil(Math.sqrt(A)/50)*50);return {w:q,h:q};
+}
+const areaOf=(kind,s)=>kind==='circ'||kind==='flex'||kind==='flexA'?Math.PI*s.w*s.w/4:kind==='oval'?(s.w-s.h)*s.h+Math.PI*s.h*s.h/4:s.w*s.h;
+function inTerm(t,p,tol){const r=-(t.rot||0)*D2R,dx=p[0]-t.x,dy=p[1]-t.y,x=dx*Math.cos(r)-dy*Math.sin(r),y=dx*Math.sin(r)+dy*Math.cos(r);return Math.abs(x)<=t.w/2+tol&&Math.abs(y)<=t.h/2+tol}
+/* red de conductos: nodos en extremos, vértices y acometidas; caudales acumulados desde los terminales hacia el equipo */
+function ductNetwork(){
+  const D=ents.filter(e=>e.t==='duct'&&vis(e)&&e.pts.length>1),TM=ents.filter(e=>e.t==='term'&&vis(e));
+  const par=[],nn=()=>{par.push(par.length);return par.length-1},find=x=>{while(par[x]!==x){par[x]=par[par[x]];x=par[x]}return x},uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)par[a]=b};
+  const info=new Map();
+  for(const d of D){const S=ductSegData(d),cum=[0];S.forEach(g=>cum.push(cum[cum.length-1]+g.L));info.set(d,{S,cum,st:[]})}
+  const addSt=(d,s,extra)=>{const I=info.get(d);let st=I.st.find(x=>Math.abs(x.s-s)<1);if(!st){st={s,node:nn()};I.st.push(st)}if(extra)Object.assign(st,extra);return st};
+  for(const d of D){const I=info.get(d);I.cum.forEach((c,i)=>addSt(d,c,i===0?{end:0}:i===I.cum.length-1?{end:1}:{vtx:i}))}
+  /* acometidas (derivaciones) */
+  const taps=[];
+  for(const b of D){const n=b.pts.length;for(const [k,ix] of [[0,0],[n-1,1]]){for(const m of D){if(m===b)continue;const j=ductJunction(b,k,m);if(j){const I=info.get(m),s0=I.cum[j.mseg]+j.mt,st=addSt(m,s0,{tap:true,wb:j.wb});uni(st.node,info.get(b).st.find(x=>x.end===ix).node);taps.push({m,s:s0});break}}}}
+  /* uniones extremo con extremo */
+  const endsL=[];for(const d of D){const I=info.get(d);for(const ix of [0,1])endsL.push({d,ix,p:ix?d.pts[d.pts.length-1]:d.pts[0],node:I.st.find(x=>x.end===ix).node})}
+  for(let a=0;a<endsL.length;a++)for(let b=a+1;b<endsL.length;b++)if(endsL[a].d!==endsL[b].d&&dist(endsL[a].p,endsL[b].p)<1)uni(endsL[a].node,endsL[b].node);
+  /* terminales en los extremos */
+  const dem=new Map(),used=new Set(),termNode=new Set();
+  for(const t of TM){const tol=50;const hit=endsL.find(x=>inTerm(t,x.p,tol));if(hit){const r=find(hit.node);dem.set(r,(dem.get(r)||0)+(+t.q||0));termNode.add(r);used.add(t)}}
+  /* aristas */
+  const E=[];
+  for(const d of D){const I=info.get(d);I.st.sort((a,b)=>a.s-b.s);for(let q=0;q<I.st.length-1;q++){const a=I.st[q],b=I.st[q+1];if(b.s-a.s<1e-6)continue;const mid=(a.s+b.s)/2;let seg=0;while(seg<I.S.length-1&&I.cum[seg+1]<mid)seg++;E.push({d,seg,sa:a.s,sb:b.s,u:find(a.node),v:find(b.node)})}}
+  const adj=new Map();for(const ed of E){for(const x of [ed.u,ed.v]){if(!adj.has(x))adj.set(x,[])}adj.get(ed.u).push(ed);adj.get(ed.v).push(ed)}
+  /* equipos (capa EQUIPOS) para reconocer el origen de la red */
+  const eq=ents.filter(e=>vis(e)&&e.layer==='EQUIPOS').map(bb);const inEq=p=>eq.some(b=>p[0]>=b[0]-200&&p[0]<=b[2]+200&&p[1]>=b[1]-200&&p[1]<=b[3]+200);
+  const nodePt=new Map();for(const x of endsL)nodePt.set(find(x.node),x.p);
+  const seen=new Set(),comps=[];
+  for(const st of adj.keys()){if(seen.has(st))continue;const cs=[],qq=[st];seen.add(st);while(qq.length){const x=qq.pop();cs.push(x);for(const ed of adj.get(x)){const y=ed.u===x?ed.v:ed.u;if(!seen.has(y)){seen.add(y);qq.push(y)}}}comps.push(cs)}
+  const res=[],warn=[];
+  for(const cs of comps){
+    const total=cs.reduce((a,x)=>a+(dem.get(x)||0),0);if(!(total>0)){warn.push('Hay una red de conductos sin difusores ni rejillas conectados (o sin caudal): no se ha dimensionado.');continue}
+    const cand=cs.filter(x=>adj.get(x).length===1&&!termNode.has(x));
+    const score=x=>{const ed=adj.get(x)[0],sec=ed.d.sec[ed.seg];return (nodePt.has(x)&&inEq(nodePt.get(x))?1e12:0)+areaOf(ed.d.kind,sec)};
+    let root=cand.sort((a,b)=>score(b)-score(a))[0];
+    if(root==null){root=cs.slice().sort((a,b)=>Math.max(...adj.get(b).map(e=>areaOf(e.d.kind,e.d.sec[e.seg])))-Math.max(...adj.get(a).map(e=>areaOf(e.d.kind,e.d.sec[e.seg]))))[0];warn.push('Una red no tiene un extremo libre claro para el equipo: se ha tomado el conducto mayor como origen.')}
+    else if(cand.length>1&&!(nodePt.has(root)&&inEq(nodePt.get(root))))warn.push('Una red tiene varios extremos libres; se ha tomado como origen el del conducto mayor. Coloque el extremo de salida del equipo dentro de su símbolo para fijarlo.');
+    /* recorrido desde el origen: caudal de cada arista = suma de terminales aguas abajo */
+    const order=[],parentE=new Map(),vis2=new Set([root]),stack=[root];
+    while(stack.length){const x=stack.pop();order.push(x);for(const ed of adj.get(x)){const y=ed.u===x?ed.v:ed.u;if(vis2.has(y))continue;vis2.add(y);parentE.set(y,{ed,from:x});stack.push(y)}}
+    const sub=new Map();for(let q=order.length-1;q>=0;q--){const x=order[q];let s0=dem.get(x)||0;for(const ed of adj.get(x)){const y=ed.u===x?ed.v:ed.u;const pe=parentE.get(y);if(pe&&pe.from===x&&pe.ed===ed)s0+=sub.get(y)||0}sub.set(x,s0)}
+    for(const [y,pe] of parentE){const ed=pe.ed;ed.Q=sub.get(y)||0;ed.fwd=pe.from===ed.u}
+    for(const ed of E)if(cs.includes(ed.u))res.push(ed);
+  }
+  const loose=TM.filter(t=>!used.has(t)&&+t.q>0).length;if(loose)warn.push(`${loose} difusor(es) o rejilla(s) con caudal no están conectados a ningún extremo de conducto.`);
+  return {edges:res,warn,info};
+}
+/* reparte cada conducto en tramos según el caudal y propone secciones */
+function ductProposal(){
+  const N=ductNetwork(),byD=new Map();
+  for(const ed of N.edges){if(!byD.has(ed.d))byD.set(ed.d,[]);byD.get(ed.d).push(ed)}
+  const plan=[];
+  for(const [d,eds] of byD){const I=N.info.get(d);eds.sort((a,b)=>a.sa-b.sa);
+    const at=s0=>{let i=0;while(i<I.S.length-1&&I.cum[i+1]<s0)i++;const g=I.S[i],t=s0-I.cum[i];return [g.a[0]+g.u[0]*t,g.a[1]+g.u[1]*t]};
+    /* cortes: vértices originales + acometidas desplazadas aguas abajo para que la reducción quede después de la derivación */
+    const cuts=[];
+    for(let q=0;q<eds.length-1;q++){const a=eds[q],b=eds[q+1];const s0=a.sb,isV=I.cum.some(c=>Math.abs(c-s0)<1);if(isV)continue;if(Math.abs((a.Q||0)-(b.Q||0))<1e-6)continue;
+      const st=I.st.find(x=>Math.abs(x.s-s0)<1),sh=(st&&st.wb?st.wb/2:150)+150,down=(a.Q||0)>(b.Q||0)?1:-1;let sc=s0+down*sh;const seg=a.seg,lo=I.cum[seg]+50,hi=I.cum[seg+1]-50;sc=Math.max(lo,Math.min(hi,sc));
+      cuts.push({s:sc,seg,Qbig:Math.max(a.Q||0,b.Q||0),Qsmall:Math.min(a.Q||0,b.Q||0),down})}
+    /* nueva lista de puntos y caudal por tramo */
+    const pts=[d.pts[0].slice()],segOrig=[],segQ=[];
+    const Qat=s0=>{const e2=eds.find(x=>s0>=x.sa-1e-6&&s0<=x.sb+1e-6);return e2?(e2.Q||0):0};
+    let prev=0;const allC=[...I.cum.slice(1,-1).map((c,i)=>({s:c,vtx:i+1})),...cuts].sort((a,b)=>a.s-b.s);
+    for(const c of [...allC,{s:I.cum[I.cum.length-1],end:true}]){
+      const mid=(prev+c.s)/2;let seg=0;while(seg<I.S.length-1&&I.cum[seg+1]<mid)seg++;
+      /* caudal del tramo: el máximo de las aristas que contiene (lado aguas arriba de la acometida) */
+      let Q=0;for(const e2 of eds)if(e2.sb>prev+1e-6&&e2.sa<c.s-1e-6)Q=Math.max(Q,e2.Q||0);
+      segOrig.push(seg);segQ.push(Q);pts.push(c.end?d.pts[d.pts.length-1].slice():at(c.s));prev=c.s}
+    const rows=segOrig.map((o,i)=>{const cur=d.sec[o],v=segV(d,o),Q=segQ[i],nw=Q>0?sizeFor(d.kind,Q,v,cur):{...cur},vr=Q>0?Q/3600/(areaOf(d.kind,nw)/1e6):0;return {o,Q,v,cur,nw,vr}});
+    /* tramos sin caudal (finales ciegos): toman la sección del tramo contiguo con caudal */
+    for(let i=0;i<rows.length;i++)if(!(rows[i].Q>0)){const nb=rows.slice(0,i).reverse().find(r=>r.Q>0)||rows.slice(i+1).find(r=>r.Q>0);if(nb)rows[i].nw={...nb.nw}}
+    plan.push({d,pts,rows});
+  }
+  return {plan,warn:N.warn};
+}
+function applyProposal(P){
+  mod();
+  for(const {d,pts,rows} of P.plan){const tr=d.tr||[],vm=d.vmax||[];d.pts=pts;d.sec=rows.map(r=>({...r.nw}));d.tr=rows.map((r,i)=>i>0&&rows[i-1].o===r.o?'c':(tr[r.o]||'c'));
+    if(d.vmax)d.vmax=rows.map(r=>vm[r.o]||null);if(rows.length&&rows[0].Q>0)d.q0=rows[0].Q;delete d._bb}
+  after();
+}
+async function cPredim(){
+  const ok=await new Promise(res0=>{let fin=false;const res=v=>{if(!fin){fin=true;res0(v)}};
+    dialog('Predimensionado de conductos',`<p class="tip" style="margin:0 0 .6rem">Suma los caudales de los difusores y rejillas conectados y calcula la sección de cada tramo para no superar la velocidad máxima. En los rectangulares y ovoides se mantiene el alto de cada tramo y se calcula el ancho.</p>
+    <fieldset><legend>Velocidad máxima por defecto (m/s)</legend>
+    <label class="pr"><span>Chapa de acero (rectangular, circular, ovoide)</span><input id="pvS" class="inp" inputmode="decimal" value="${String(S.vSteel).replace('.',',')}"></label>
+    <label class="pr"><span>Conducto de fibra de vidrio</span><input id="pvF" class="inp" inputmode="decimal" value="${String(S.vFib).replace('.',',')}"></label>
+    <label class="pr"><span>Flexibles</span><input id="pvX" class="inp" inputmode="decimal" value="${String(S.vFlex).replace('.',',')}"></label></fieldset>
+    <p class="tip" style="margin:.5rem 0 0">Para cambiar la velocidad de un tramo concreto: EDITCONDUCTO (o doble clic en el conducto) → opción Velocidad.</p>`,
+    [['Cancelar',()=>res(false)],['Calcular',()=>{const g=id=>+$(id).value.replace(',','.');const a=g('#pvS'),b=g('#pvF'),c=g('#pvX');if(a>0)S.vSteel=a;if(b>0)S.vFib=b;if(c>0)S.vFlex=c;saveS();res(true)},true]]);
+    onDlgClose(()=>fin,()=>res(false));
+  });
+  if(!ok)return;
+  const P=ductProposal();
+  if(!P.plan.length){msg('No hay conductos con difusores o rejillas conectados. '+(P.warn[0]||''),'e');return}
+  let n=0;const rowsH=[];
+  for(const {d,rows} of P.plan){n++;rows.forEach((r,i)=>rowsH.push(`<tr><td>${n}.${i+1}</td><td>${esc(DKIND[d.kind].n)}</td><td style="text-align:right">${fmtQ(r.Q)}</td><td style="text-align:right">${String(r.v).replace('.',',')}</td><td>${esc(ductLabel(d.kind,r.cur))}</td><td><b>${esc(ductLabel(d.kind,r.nw))}</b></td><td style="text-align:right">${r.Q>0?r.vr.toFixed(2).replace('.',','):'—'}</td></tr>`))}
+  const ap=await new Promise(res0=>{let fin=false;const res=v=>{if(!fin){fin=true;res0(v)}};
+    dialog('Resultado del predimensionado',`${P.warn.length?`<div class="tip" style="color:var(--warn,#e0a030);margin-bottom:.5rem">${P.warn.map(esc).join('<br>')}</div>`:''}
+    <div style="max-height:55vh;overflow:auto"><table class="lmt" style="width:100%;border-collapse:collapse"><thead><tr><th>Tramo</th><th>Tipo</th><th>Caudal m³/h</th><th>v máx</th><th>Sección actual</th><th>Propuesta</th><th>v real m/s</th></tr></thead><tbody>${rowsH.join('')}</tbody></table></div>
+    <p class="tip" style="margin:.5rem 0 0">Al aplicar, los conductos se parten después de cada derivación y cada tramo toma su sección; las reducciones se dibujan solas. Ctrl+Z lo deshace.</p>`,
+    [['Cancelar',()=>res(false)],['Aplicar',()=>res(true),true]]);
+    onDlgClose(()=>fin,()=>res(false));
+  });
+  if(!ap)return;
+  applyProposal(P);msg(`Predimensionado aplicado a ${P.plan.length} conducto(s).`,'c');
+}
 async function cDuctEdit(pre,pp){
   let e=pre,p=pp||null;
   if(!e){for(;;){const r=await gpick('Designe el tramo de conducto que desea modificar');if(!r)return;if(r.e.t==='duct'){e=r.e;p=r.p;break}msg('Designe un conducto','e')}}
   const D=ductSegData(e);let i=0;if(p){let bd=Infinity;D.forEach((g,j)=>{const d=dSeg(p,[g.a[0],g.a[1],g.b[0],g.b[1]]);if(d<bd){bd=d;i=j}})}
   sel.clear();sel.add(e.id);draw();
   for(;;){
-    const k=await gkw(`${DKIND[e.kind].n}, tramo ${i+1} de ${e.sec.length}: ${ductLabel(e.kind,e.sec[i])}. Indique una opción [Sección/Tipo/tRansición/rótuLo/Unión] <Salir>`,['S','T','R','L','U'],null);
+    const k=await gkw(`${DKIND[e.kind].n}, tramo ${i+1} de ${e.sec.length}: ${ductLabel(e.kind,e.sec[i])}. Indique una opción [Sección/Tipo/tRansición/rótuLo/Unión/Velocidad] <Salir>`,['S','T','R','L','U','V'],null);
     if(k==null)break;
     if(k==='S'){const s2=await askDuctSec(e.kind,e.sec[i]);if(!s2)continue;const a=await gkw('Aplicar a [Tramo/Siguientes/tOdos] <Tramo>',['T','S','O'],'T');mod();
       const from=a==='O'?0:i,to=a==='T'?i:e.sec.length-1;for(let q=from;q<=to;q++)e.sec[q]={...s2};delete e._bb;draw();continue}
     if(k==='T'){const nk=await askDuctKind(e.kind);if(!nk)continue;let s2=e.sec[0];if(DKIND[nk].rnd!==DKIND[e.kind].rnd){s2=await askDuctSec(nk,DEF.ds[nk]);if(!s2)continue}mod();e.kind=nk;if(s2!==e.sec[0])e.sec=e.sec.map(()=>({...s2}));delete e._bb;draw();continue}
     if(k==='R'){if(i===0){msg('El primer tramo no tiene transición de entrada','e');continue}const t=await gkw('Transición de entrada a este tramo [Centrada/Izquierda recta/Derecha recta] <Centrada>',['C','I','D'],'C');mod();e.tr=e.tr||[];e.tr[i]=t==='I'?'l':t==='D'?'r':'c';delete e._bb;draw();continue}
+    if(k==='V'){const cv=segV(e,i),v=await gnum(`Velocidad máxima del tramo en m/s (0 = la de por defecto, ${String(vDefOf(e.kind)).replace('.',',')} m/s) <${String(cv).replace('.',',')}>`,cv);if(v==null||v<0)continue;const a=await gkw('Aplicar a [Tramo/Siguientes/tOdos] <Tramo>',['T','S','O'],'T');mod();e.vmax=e.vmax||e.sec.map(()=>null);while(e.vmax.length<e.sec.length)e.vmax.push(null);const from=a==='O'?0:i,to=a==='T'?i:e.sec.length-1;for(let q=from;q<=to;q++)e.vmax[q]=v>0?v:null;msg(v>0?`Velocidad máxima ${String(v).replace('.',',')} m/s`:'Velocidad por defecto');continue}
     if(k==='L'){mod();e.lbl=e.lbl===false?true:false;msg(e.lbl===false?'Rótulos ocultos':'Rótulos visibles');draw();continue}
     if(k==='U'){const ex=await gkw('¿Qué extremo? [Inicial/Final] <Inicial>',['I','F'],'I');const f=await fitAsk();mod();if(ex==='F')e.fit1=f;else e.fit0=f;draw();continue}
   }
@@ -3093,6 +3216,7 @@ const CMDS=[
   ['ALINEAR','AL ALIGN','Alinear','Modificar',cAlign,'Mueve, gira y opcionalmente escala con dos pares de puntos.'],
   ['BORRA','E ERASE SUPR','Borrar','Modificar',cErase,'Borra objetos (también tecla Supr).'],
   ['CONDUCTO','DU DUCTO','Conducto','Clima',cDuct,'Conducto conectable: chapa rectangular, circular u ovoide, fibra, flexible aislado o sin aislar. Cambios de sección, codos y derivaciones automáticos.'],
+  ['PREDIMENSIONAR','PDC PREDIM','Predimensionar conductos','Clima',cPredim,'Calcula la sección de cada tramo con los caudales de los difusores y rejillas conectados y la velocidad máxima (chapa 9 m/s, fibra 6 m/s, flexible 4 m/s por defecto).'],
   ['EDITCONDUCTO','EDU DUE','Editar conducto','Clima',()=>cDuctEdit(),'Cambia la sección de un tramo, el tipo, la transición, los rótulos o la unión de un conducto. También con doble clic.'],
   ['MURO','MU WALL','Muro','Clima',()=>cDouble(false),'Muro a doble línea centrado en el eje, en la capa MUROS. C cierra el contorno.'],
   ['TUBERIA','TU','Tubería','Clima',()=>cPline('TUBERIAS',30),'Polilínea en la capa TUBERIAS (frigorífica, condensados…).'],
@@ -3216,6 +3340,7 @@ BORRACOTAS:`<path d="M3 5v8M15 5v8M3 10h12"/><path d="M15 15l6 6M21 15l-6 6" str
 DIRECTRIZM:`<path d="M3 20l8-8h4"/><path d="M3 20l1-4 3 3z" fill="${IA}" stroke="${IA}"/><path d="M16 9h6M16 13h5" stroke="${IY}"/>`,
 DIST:`<rect x="2" y="8" width="20" height="8" rx="1"/><path d="M6 8v3M10 8v4M14 8v3M18 8v4" stroke="${IA}"/>`,
 CONDUCTO:`<path d="M2 7h15v14"/><path d="M2 13h9v8" stroke="${IA}"/>`,
+PREDIMENSIONAR:`<path d="M2 9h13v12"/><path d="M2 15h7v6"/><path d="M15 3h7M18.5 3v6M15 9h7" stroke="${IA}"/>`,
 EDITCONDUCTO:`<path d="M2 8h12v13"/><path d="M2 14h6v7"/><path d="M14 10l6-6 2 2-6 6h-2z" stroke="${IA}"/>`,
 MURO:`<rect x="2" y="8" width="20" height="8"/><path d="M5 16l5-8M10 16l5-8M15 16l5-8" stroke="${IA}"/>`,
 TUBERIA:`<path d="M3 18h7V6h11" stroke="${IY}" stroke-dasharray="3 2"/><circle cx="3" cy="18" r="1.6" fill="${IY}" stroke="${IY}"/>`,
@@ -3270,7 +3395,7 @@ const RIB={
     {t:'Utilidades',cols:['MEDIRGEOM',['AREA','LIST','ID']]},
     {t:'Portapapeles',cols:['PEGARPP',['COPIARPP']]}],
   insertar:[{t:'Importar',cols:['IMPORTARPDF','ABRIR']}],
-  clima:[{t:'Conductos y redes',cols:['CONDUCTO','EDITCONDUCTO','TUBERIA','MURO']},{t:'Difusión',cols:['DIFUSOR','REJILLA']},{t:'Equipos',cols:['UI','CASSETTE','UE']}],
+  clima:[{t:'Conductos y redes',cols:['CONDUCTO','EDITCONDUCTO','PREDIMENSIONAR','TUBERIA','MURO']},{t:'Difusión',cols:['DIFUSOR','REJILLA']},{t:'Equipos',cols:['UI','CASSETTE','UE']}],
   anotar:[{t:'Texto',cols:['TEXTOM',['TEXTO','DDEDIC'],{combo:'tsty'}]},{t:'Cotas',cols:['ACOLINEAL',['ACOALINEADA','ACOANGULO','ACORADIO'],['ACODIAMETRO','ACOCONTINUA','ACOLINEABASE'],['ACOCENTRO','ACOREMPLAZAR','!BORRACOTAS'],['ACOARCO','ACORECODO','ACOLINRECOD'],['ACOCORTE','ACOESPAC'],{combo:'dsty'}]},{t:'Directrices',cols:['DIRECTRIZM',{combo:'msty'}]},{t:'Medir',cols:['DIST']}],
   pres:[{t:'Presentación',cols:['PRESENTACION','CONFIGPAG']},{t:'Ventanas de presentación',cols:['VMULT',['ESPACIOM','ESPACIOP']]}],
   salida:[{t:'Trazar',cols:['TRAZAR']},{t:'Exportar',cols:['GUARDAR','PNG']}],
