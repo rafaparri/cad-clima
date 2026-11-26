@@ -273,7 +273,7 @@ const S={...SDEF};let CECOL=null,CELW=null,docName='Plano1';
 let mouseS=[0,0],mouseW=[0,0],snap=null,inCanvas=false,lastPt=[0,0];
 let req=null,running=null,lastCmd=null,win=null,pan=null;
 let undoSt=[],redoSt=[];
-const DEF={dk:'rect',ds:{rect:{w:400,h:300},fib:{w:400,h:300},oval:{w:400,h:200},circ:{w:250,h:250},flexA:{w:200,h:200},flex:{w:200,h:200}},textH:250,dimH:150,ductW:400,ductH:'300',wallW:150,DIF:600,REJ:600,UI:1000,CAS:840,UE:900,off:100};
+const DEF={term:{DIF:{w:600,h:600,q:0},REJ:{w:600,h:150,q:0}},dk:'rect',ds:{rect:{w:400,h:300},fib:{w:400,h:300},oval:{w:400,h:200},circ:{w:250,h:250},flexA:{w:200,h:200},flex:{w:200,h:200}},textH:250,dimH:150,ductW:400,ductH:'300',wallW:150,DIF:600,REJ:600,UI:1000,CAS:840,UE:900,off:100};
 class Cancel{}
 
 /* ---------- colores ---------- */
@@ -657,7 +657,7 @@ function mtGeom(e){
   const r=e.rot||0,c=Math.cos(r),sn=Math.sin(r),al=['l','c','r'][col],xo=x0+[0,bw/2,bw][col];
   return {texts:ls.map((l,i)=>{const lx=xo,ly=yt-e.h-i*lsp;return {t:'text',x:e.x+lx*c-ly*sn,y:e.y+lx*sn+ly*c,h:e.h,s:l,rot:r,al,st:e.st}}).filter(t=>t.s.trim()),lines:[],fills:[],box:[[x0,yt],[x0+bw,yt],[x0+bw,yt-Ht],[x0,yt-Ht]].map(([x,y])=>[e.x+x*c-y*sn,e.y+x*sn+y*c])};
 }
-const COMP={dim:dimGeom,mtext:mtGeom,ldr:ldrGeom,rdim:rdimGeom,adim:adimGeom,duct:(...a)=>ductGeom(...a)};
+const COMP={dim:dimGeom,mtext:mtGeom,ldr:ldrGeom,rdim:rdimGeom,adim:adimGeom,duct:(...a)=>ductGeom(...a),term:(...a)=>termGeom(...a)};
 function comp(e){return COMP[e.t](e)}
 function segs(e){
   switch(e.t){
@@ -669,7 +669,7 @@ function segs(e){
     case 'circle':return arcSegs(e.cx,e.cy,e.r,0,TAU,64);
     case 'arc':{const sp=span(e.a1,e.a2);return arcSegs(e.cx,e.cy,e.r,e.a1,sp,Math.max(6,Math.ceil(sp/TAU*64)))}
     case 'text':{const q=textBox(e);return q.map((p,i)=>[p[0],p[1],q[(i+1)%4][0],q[(i+1)%4][1]])}
-    case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':{const g=comp(e),o=g.lines.slice();for(const f of g.fills)if(!f.mask)f.forEach((p,i)=>{const q=f[(i+1)%f.length];o.push([p[0],p[1],q[0],q[1]])});for(const t of g.texts)o.push(...segs(t));return o}
+    case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':case 'term':{const g=comp(e),o=g.lines.slice();for(const f of g.fills)if(!f.mask)f.forEach((p,i)=>{const q=f[(i+1)%f.length];o.push([p[0],p[1],q[0],q[1]])});for(const t of g.texts)o.push(...segs(t));return o}
     case 'vp':return [[e.x1,e.y1,e.x2,e.y1],[e.x2,e.y1,e.x2,e.y2],[e.x2,e.y2,e.x1,e.y2],[e.x1,e.y2,e.x1,e.y1]];
   }
   return [];
@@ -717,6 +717,7 @@ function applyM(e,M){
     case 'arc':{const s=ap(M,e.cx+e.r*Math.cos(e.a1),e.cy+e.r*Math.sin(e.a1)),f=ap(M,e.cx+e.r*Math.cos(e.a2),e.cy+e.r*Math.sin(e.a2));[e.cx,e.cy]=ap(M,e.cx,e.cy);e.r*=k;let a1=Math.atan2(s[1]-e.cy,s[0]-e.cx),a2=Math.atan2(f[1]-e.cy,f[0]-e.cx);if(det<0)[a1,a2]=[a2,a1];e.a1=a1;e.a2=a2;break}
     case 'text':{const r=e.rot||0,c=Math.cos(r),s=Math.sin(r);[e.x,e.y]=ap(M,e.x,e.y);const vx=M[0]*c+M[2]*s,vy=M[1]*c+M[3]*s,hx=-M[0]*s+M[2]*c,hy=-M[1]*s+M[3]*c;e.h*=Math.hypot(hx,hy)||1;let nr=Math.atan2(vy,vx);if(det<0){const a=nrm(nr);if(a>Math.PI/2+1e-6&&a<=Math.PI*1.5+1e-6){nr+=Math.PI;if(e.al==='l'||!e.al){const w=textW(e.s,e.h);e.x-=w*Math.cos(nr);e.y-=w*Math.sin(nr)}}}e.rot=nr;break}
     case 'ldr':e.pts=e.pts.map(p=>ap(M,p[0],p[1]));if(e.h)e.h*=k;else e.k=(e.k||1)*k;if(e.w)e.w*=k;break;
+    case 'term':{const r=(e.rot||0)*D2R,c=Math.cos(r),s=Math.sin(r);[e.x,e.y]=ap(M,e.x,e.y);const vx=M[0]*c+M[2]*s,vy=M[1]*c+M[3]*s;e.rot=Math.round(Math.atan2(vy,vx)/D2R*1e6)/1e6;if(Math.abs(k-1)>1e-9){e.w*=k;e.h*=k}break}
     case 'duct':e.pts=e.pts.map(p=>ap(M,p[0],p[1]));if(Math.abs(k-1)>1e-9)e.sec=e.sec.map(x=>({w:x.w*k,h:x.h*k}));if(det<0&&e.tr)e.tr=e.tr.map(x=>x==='l'?'r':x==='r'?'l':x);break;
     case 'rdim':[e.cx,e.cy]=ap(M,e.cx,e.cy);[e.x3,e.y3]=ap(M,e.x3,e.y3);if(e.jog){[e.ox,e.oy]=ap(M,e.ox,e.oy);[e.jx,e.jy]=ap(M,e.jx,e.jy)}e.r*=k;if(e.h)e.h*=k;else e.k=(e.k||1)*k;break;
     case 'adim':{[e.cx,e.cy]=ap(M,e.cx,e.cy);[e.x1,e.y1]=ap(M,e.x1,e.y1);[e.x2,e.y2]=ap(M,e.x2,e.y2);[e.x3,e.y3]=ap(M,e.x3,e.y3);if(e.h)e.h*=k;else e.k=(e.k||1)*k;if(det<0){[e.x1,e.y1,e.x2,e.y2]=[e.x2,e.y2,e.x1,e.y1]}break}
@@ -845,7 +846,7 @@ function drawEnt(c,vw,e){
     case 'circle':c.beginPath();c.arc(X(e.cx),Y(e.cy),Math.max(e.r*vw.s,.5),0,TAU);c.stroke();break;
     case 'arc':c.beginPath();c.arc(X(e.cx),Y(e.cy),Math.max(e.r*vw.s,.5),-e.a1,-e.a2,true);c.stroke();break;
     case 'text':drawText(c,vw,e);break;
-    case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':drawComp(c,vw,e);break;
+    case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':case 'term':drawComp(c,vw,e);break;
     case 'point':{const x=X(e.x),y=Y(e.y);c.beginPath();c.moveTo(x-3,y-3);c.lineTo(x+3,y+3);c.moveTo(x+3,y-3);c.lineTo(x-3,y+3);c.stroke();break}
     case 'xline':{const s=segs(e)[0];c.beginPath();c.moveTo(X(s[0]),Y(s[1]));c.lineTo(X(s[2]),Y(s[3]));c.stroke();break}
     case 'img':{const im=imgEl(e.img);if(im&&im.complete&&im.naturalWidth){c.save();c.globalAlpha=e.fade!=null?e.fade:.6;c.drawImage(im,X(e.x),Y(e.y+e.h),e.w*vw.s,e.h*vw.s);c.restore()}c.beginPath();c.rect(X(e.x),Y(e.y+e.h),e.w*vw.s,e.h*vw.s);c.stroke();break}
@@ -1112,7 +1113,7 @@ async function cDrawOrder(opt0){
     const at=k==='E'?Math.max(...idx)+1:Math.min(...idx);out=[...rest.slice(0,at),...mv,...rest.slice(at)]}
   mod();ents.splice(0,ents.length,...out);msg(`Orden de ${mv.length} objeto(s) cambiado`);
 }
-const QTN={duct:'Conducto',line:'Línea',pline:'Polilínea',circle:'Círculo',arc:'Arco',text:'Texto',mtext:'Texto múltiple',dim:'Cota lineal o alineada',rdim:'Cota de radio o diámetro',adim:'Cota angular',ldr:'Directriz múltiple',vp:'Ventana gráfica',img:'Imagen',point:'Punto',xline:'Línea auxiliar'};
+const QTN={term:'Difusor o rejilla',duct:'Conducto',line:'Línea',pline:'Polilínea',circle:'Círculo',arc:'Arco',text:'Texto',mtext:'Texto múltiple',dim:'Cota lineal o alineada',rdim:'Cota de radio o diámetro',adim:'Cota angular',ldr:'Directriz múltiple',vp:'Ventana gráfica',img:'Imagen',point:'Punto',xline:'Línea auxiliar'};
 const styOf=e=>e.ds||e.ms||e.st||'';
 function cSelSimilar(){const base=ents.filter(e=>sel.has(e.id));if(!base.length){msg('Seleccione primero un objeto de referencia','e');return}
   const key=e=>e.t+'|'+e.layer+'|'+styOf(e),keys=new Set(base.map(key));let n=0;for(const e of ents)if(vis(e)&&keys.has(key(e))){sel.add(e.id);n++}refresh();draw();msg(`${sel.size} objeto(s) seleccionado(s) (mismo tipo, capa y estilo)`)}
@@ -1128,7 +1129,7 @@ function cQSelect(){
   const has=sel.size>0;
   dialog('Selección rápida',`<label class="pr"><span>Aplicar a</span><select id="qsA" class="inp"><option value="all">Todo el dibujo</option>${has?'<option value="cur" selected>Selección actual</option>':''}</select></label>
   <label class="pr"><span>Tipo de objeto</span><select id="qsT" class="inp"></select></label>
-  <label class="pr"><span>Propiedades</span><select id="qsP" class="inp"><option value="layer">Capa</option><option value="color">Color</option><option value="lt">Tipo de línea</option><option value="lw">Grosor de línea</option><option value="sty">Estilo</option><option value="txt">Contenido de texto</option></select></label>
+  <label class="pr"><span>Propiedades</span><select id="qsP" class="inp"><option value="layer">Capa</option><option value="color">Color</option><option value="lt">Tipo de línea</option><option value="lw">Grosor de línea</option><option value="sty">Estilo</option><option value="txt">Contenido de texto</option><option value="tsz">Tamaño (difusor o rejilla)</option><option value="tq">Caudal de aire (m³/h)</option></select></label>
   <label class="pr"><span>Operador</span><select id="qsO" class="inp"><option value="eq">= Igual a</option><option value="ne">&lt;&gt; No igual a</option><option value="wc">* Comodín</option><option value="all">Seleccionar todo</option></select></label>
   <label class="pr"><span>Valor</span><span id="qsVw"></span></label>
   <fieldset><legend>Cómo aplicar</legend><label class="chk"><input type="radio" name="qsH" value="in" checked> Incluir en nuevo conjunto de selección</label><label class="chk"><input type="radio" name="qsH" value="out"> Excluir del nuevo conjunto de selección</label></fieldset>
@@ -1139,7 +1140,7 @@ function cQSelect(){
     const ok=e=>{if(T!=='*'&&e.t!==T)return false;if(O==='all')return true;const v=pv(e,P);return O==='eq'?v===V:O==='ne'?v!==V:re.test(v)};
     const m=scope.filter(e=>ok(e)===inc);if(!$('#qsAdd').checked)sel.clear();for(const e of m)sel.add(e.id);refresh();draw();msg(`${m.length} objeto(s) seleccionado(s)`)},true]]);
   const src=()=>$('#qsA').value==='cur'?ents.filter(e=>sel.has(e.id)):ents.filter(vis);
-  const pv=(e,P)=>P==='layer'?e.layer||'0':P==='color'?(e.color==null?'PorCapa':String(e.color)):P==='lt'?(e.lt&&e.lt!=='BYLAYER'?e.lt:'PorCapa'):P==='lw'?(e.lw==null?'PorCapa':String(e.lw)):P==='sty'?styOf(e):String(e.s||'');
+  const pv=(e,P)=>P==='layer'?e.layer||'0':P==='color'?(e.color==null?'PorCapa':String(e.color)):P==='lt'?(e.lt&&e.lt!=='BYLAYER'?e.lt:'PorCapa'):P==='lw'?(e.lw==null?'PorCapa':String(e.lw)):P==='sty'?styOf(e):P==='tsz'?(e.t==='term'?fmt(e.w)+'x'+fmt(e.h):''):P==='tq'?(e.t==='term'?String(e.q||0):''):String(e.s||'');
   const fillT=()=>{const ts=[...new Set(src().map(e=>e.t))];$('#qsT').innerHTML=`<option value="*">Múltiple</option>`+ts.map(t=>`<option value="${t}">${QTN[t]||t}</option>`).join('')};
   const fillV=()=>{const T=$('#qsT').value,P=$('#qsP').value,O=$('#qsO').value,vals=[...new Set(src().filter(e=>T==='*'||e.t===T).map(e=>pv(e,P)))].sort();
     $('#qsVw').innerHTML=O==='wc'||P==='txt'?`<input id="qsV" class="inp" value="${O==='wc'?'*':''}">`:`<select id="qsV" class="inp" ${O==='all'?'disabled':''}>${vals.map(v=>`<option>${esc(v)}</option>`).join('')}</select>`};
@@ -1324,7 +1325,7 @@ function gripsOf(e){
     case 'duct':{const o=e.pts.map((p,i)=>[p[0],p[1],'v'+i]);for(let i=0;i<e.pts.length-1;i++){const a=e.pts[i],b=e.pts[i+1];o.push([(a[0]+b[0])/2,(a[1]+b[1])/2,'m'+i])}return o}
     case 'circle':return [[e.cx,e.cy,'mv'],[e.cx+e.r,e.cy,'r'],[e.cx,e.cy+e.r,'r'],[e.cx-e.r,e.cy,'r'],[e.cx,e.cy-e.r,'r']];
     case 'arc':{const m=e.a1+span(e.a1,e.a2)/2;return [[e.cx,e.cy,'mv'],[e.cx+e.r*Math.cos(e.a1),e.cy+e.r*Math.sin(e.a1),'a1'],[e.cx+e.r*Math.cos(e.a2),e.cy+e.r*Math.sin(e.a2),'a2'],[e.cx+e.r*Math.cos(m),e.cy+e.r*Math.sin(m),'r']]}
-    case 'text':case 'mtext':return [[e.x,e.y,'mv']];
+    case 'text':case 'mtext':case 'term':return [[e.x,e.y,'mv']];
     case 'dim':{const g=dimGeom(e),o=[[e.x1,e.y1,'d1'],[e.x2,e.y2,'d2'],[e.x3,e.y3,'d3']];if(g.tc)o.push([g.tc[0],g.tc[1],'dt']);return o}
     case 'rdim':return e.jog?[[e.x3,e.y3,'d3'],[e.ox,e.oy,'jo'],[e.jx,e.jy,'jj']]:[[e.x3,e.y3,'d3']];
     case 'adim':return [[e.cx,e.cy,'ac'],[e.x1,e.y1,'d1'],[e.x2,e.y2,'d2'],[e.x3,e.y3,'d3']];
@@ -2139,6 +2140,37 @@ function symbol(k,sz){
 }
 const SYM={DIF:['Difusor','DIFUSORES',3],REJ:['Rejilla','DIFUSORES',3],UI:['Unidad interior de conductos','EQUIPOS',6],CAS:['Cassette','EQUIPOS',6],UE:['Unidad exterior','EQUIPOS',6]};
 function place(k,sz,rot,p){const M=mul(Tm(p[0],p[1]),Rm(rot*D2R));return symbol(k,sz).map(e=>{applyM(e,M);e.ip=[p[0],p[1]];return e})}
+
+/* ---------- elementos terminales (difusores, rejillas) con tamaño y caudal ---------- */
+const TERM={DIF:{n:'Difusor',w:600,h:600},REJ:{n:'Rejilla',w:600,h:150}};
+const fmtQ=q=>Math.round(q).toLocaleString('es-ES');
+function termGeom(e){
+  const w=e.w,h=e.h,L=[],T=[],r=(e.rot||0)*D2R,c=Math.cos(r),s=Math.sin(r),P=(x,y)=>[e.x+x*c-y*s,e.y+x*s+y*c];
+  const box=(a,b)=>{const q=[P(-a,-b),P(a,-b),P(a,b),P(-a,b)];for(let i=0;i<4;i++)L.push(SG(q[i],q[(i+1)%4]))};
+  const a=w/2,b=h/2;box(a,b);
+  if(e.k==='DIF'){const ia=a*.55,ib=b*.55;box(ia,ib);for(const [sx,sy] of [[-1,-1],[1,-1],[1,1],[-1,1]])L.push(SG(P(sx*a,sy*b),P(sx*ia,sy*ib)))}
+  else{const m=Math.min(a,b)*.8;for(const y of [-b/2,0,b/2])L.push(SG(P(-a+m,y),P(a-m,y)))}
+  if(e.lbl!==false){const ext=Math.abs(a*s)+Math.abs(b*c),th=Math.min(150,Math.max(80,Math.max(w,h)*0.17)),lines=[fmt(w)+'x'+fmt(h)];if(e.q>0)lines.push(fmtQ(e.q)+' m³/h');
+    lines.forEach((t,i)=>T.push(T_(e.x,e.y-ext-th*0.9-i*th*1.5,th,t,0,'m')))}
+  return {lines:L,fills:[],texts:T};
+}
+async function askTermSize(k,def){
+  for(;;){const t=await gtxt(`${TERM[k].n}: tamaño ancho x alto en mm <${fmt(def.w)}x${fmt(def.h)}>`,`${fmt(def.w)}x${fmt(def.h)}`);if(t==null)return null;
+    const mm=String(t).replace(/,/g,'.').match(/^\s*(\d+(?:\.\d+)?)\s*(?:[x×X*]\s*(\d+(?:\.\d+)?))?\s*$/);if(mm&&+mm[1]>0)return {w:+mm[1],h:mm[2]?+mm[2]:+mm[1]};msg('Escriba el tamaño como ancho x alto, por ejemplo 600x600','e')}
+}
+async function cTerm(k){
+  const [label,layer,lc]=SYM[k];ensureLayer(layer,lc);
+  const d=DEF.term[k];const sz=await askTermSize(k,d);if(!sz)return;d.w=sz.w;d.h=sz.h;
+  const q=await gnum(`Caudal de aire en m³/h (0 = sin caudal)`,d.q||0);if(q==null||q<0)return;d.q=q;let rot=0;
+  for(;;){
+    const mk=c=>({t:'term',k,x:c[0],y:c[1],rot,w:d.w,h:d.h,q:d.q,layer});
+    const p=await gp(`Punto de inserción o [Girar 90°/Tamaño/Caudal] <${fmt(d.w)}x${fmt(d.h)}${d.q>0?', '+fmtQ(d.q)+' m³/h':''}, giro ${rot}°> (Intro para terminar)`,{kws:['G','T','C'],enter:true,prev:c=>[mk(c)]});
+    if(p===null)break;if(p==='G'){rot=(rot+90)%360;continue}
+    if(p==='T'){const s2=await askTermSize(k,d);if(s2){d.w=s2.w;d.h=s2.h}continue}
+    if(p==='C'){const q2=await gnum('Caudal de aire en m³/h',d.q||0);if(q2!=null&&q2>=0)d.q=q2;continue}
+    add(mk(p));
+  }
+}
 async function cSym(k){
   const [label,layer,lc]=SYM[k];ensureLayer(layer,lc);
   const sz=await gnum(`${label}: tamaño (lado largo) en mm`,DEF[k]);if(!(sz>0))return;DEF[k]=sz;let rot=0;
@@ -2358,7 +2390,7 @@ async function cStretch(){
     const mv=p=>ins(p)?[p[0]+dx,p[1]+dy]:p;delete e._bb;
     switch(e.t){case 'line':[e.x1,e.y1]=mv([e.x1,e.y1]);[e.x2,e.y2]=mv([e.x2,e.y2]);break;case 'pline':e.pts=e.pts.map(mv);break;case 'ldr':case 'duct':e.pts=e.pts.map(mv);break;
       case 'dim':[e.x1,e.y1]=mv([e.x1,e.y1]);[e.x2,e.y2]=mv([e.x2,e.y2]);[e.x3,e.y3]=mv([e.x3,e.y3]);if(e.tp)e.tp=mv(e.tp);break;case 'rdim':[e.x3,e.y3]=mv([e.x3,e.y3]);if(e.jog){[e.ox,e.oy]=mv([e.ox,e.oy]);[e.jx,e.jy]=mv([e.jx,e.jy])}break;case 'adim':[e.cx,e.cy]=mv([e.cx,e.cy]);[e.x1,e.y1]=mv([e.x1,e.y1]);[e.x2,e.y2]=mv([e.x2,e.y2]);[e.x3,e.y3]=mv([e.x3,e.y3]);break;
-      case 'circle':case 'arc':if(ins([e.cx,e.cy]))applyM(e,T);break;case 'text':case 'mtext':if(ins([e.x,e.y]))applyM(e,T);break;
+      case 'circle':case 'arc':if(ins([e.cx,e.cy]))applyM(e,T);break;case 'text':case 'mtext':case 'term':if(ins([e.x,e.y]))applyM(e,T);break;
       case 'vp':{const nx1=ins([e.x1,e.y1])||ins([e.x1,e.y2]),nx2=ins([e.x2,e.y1])||ins([e.x2,e.y2]),ny1=ins([e.x1,e.y1])||ins([e.x2,e.y1]),ny2=ins([e.x1,e.y2])||ins([e.x2,e.y2]);if(nx1)e.x1+=dx;if(nx2)e.x2+=dx;if(ny1)e.y1+=dy;if(ny2)e.y2+=dy;break}}};
   const bp=await gp('Punto base');
   const d=await gp('Segundo punto',{base:bp,prev:c=>list.slice(0,300).map(e=>{const k=clone(e);apply(k,c[0]-bp[0],c[1]-bp[1]);return k})});
@@ -2695,7 +2727,7 @@ function pdfBytes(sh,opt){
       case 'pline':path(e.pts.map(p=>T(p[0],p[1])),e.closed);break;
       case 'circle':case 'arc':{const sp=e.t==='circle'?TAU:span(e.a1,e.a2),a0=e.t==='circle'?0:e.a1,n=Math.min(360,Math.max(12,Math.ceil(e.r*sc*sp/0.4))),pts=[];for(let i=0;i<=n;i++){const a=a0+sp*i/n;pts.push(T(e.cx+e.r*Math.cos(a),e.cy+e.r*Math.sin(a)))}path(pts,false);break}
       case 'text':txt(e,T,sc,null);break;
-      case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':{const g=comp(e),pp=fl=>fl.map((p,i)=>{const q=T(p[0],p[1]);return f(q[0]*K)+' '+f(q[1]*K)+(i?' l':' m')}).join(' ')+' h',st=o=>{const a=[];if(o.c!=null){const c=pc(o.c,e);a.push(c+' RG '+c+' rg')}if(o.lw!=null&&opt.lw)a.push(f((o.lw<0?lwOf({layer:e.layer}):o.lw)*K)+' w');if(o.lt){const n=ltName(o.lt,e);if(n)a.push('['+LTD[n].p.map(v=>f(Math.abs(v)*(e.lts||1)*K)).join(' ')+'] 0 d')}return a.length?'q '+a.join(' ')+' ':''};
+      case 'dim':case 'ldr':case 'rdim':case 'adim':case 'mtext':case 'duct':case 'term':{const g=comp(e),pp=fl=>fl.map((p,i)=>{const q=T(p[0],p[1]);return f(q[0]*K)+' '+f(q[1]*K)+(i?' l':' m')}).join(' ')+' h',st=o=>{const a=[];if(o.c!=null){const c=pc(o.c,e);a.push(c+' RG '+c+' rg')}if(o.lw!=null&&opt.lw)a.push(f((o.lw<0?lwOf({layer:e.layer}):o.lw)*K)+' w');if(o.lt){const n=ltName(o.lt,e);if(n)a.push('['+LTD[n].p.map(v=>f(Math.abs(v)*(e.lts||1)*K)).join(' ')+'] 0 d')}return a.length?'q '+a.join(' ')+' ':''};
         for(const s of g.lines){const q=st(s);C.push(q+f(T(s[0],s[1])[0]*K)+' '+f(T(s[0],s[1])[1]*K)+' m '+f(T(s[2],s[3])[0]*K)+' '+f(T(s[2],s[3])[1]*K)+' l S'+(q?' Q':''))}
         for(const fl of g.fills)if(fl.mask)C.push('q '+(fl.bg?'1 1 1':pc(fl.c,e))+' rg '+pp(fl)+' f Q');
         for(const fl of g.fills)if(!fl.mask){const q=st(fl);C.push(q+pp(fl)+(fl.o?' S':' f')+(q?' Q':''))}
@@ -3064,8 +3096,8 @@ const CMDS=[
   ['EDITCONDUCTO','EDU DUE','Editar conducto','Clima',()=>cDuctEdit(),'Cambia la sección de un tramo, el tipo, la transición, los rótulos o la unión de un conducto. También con doble clic.'],
   ['MURO','MU WALL','Muro','Clima',()=>cDouble(false),'Muro a doble línea centrado en el eje, en la capa MUROS. C cierra el contorno.'],
   ['TUBERIA','TU','Tubería','Clima',()=>cPline('TUBERIAS',30),'Polilínea en la capa TUBERIAS (frigorífica, condensados…).'],
-  ['DIFUSOR','DIF','Difusor','Clima',()=>cSym('DIF'),'Difusor cuadrado. G gira 90°. Inserta varios seguidos.'],
-  ['REJILLA','REJ','Rejilla','Clima',()=>cSym('REJ'),'Rejilla lineal de impulsión o retorno.'],
+  ['DIFUSOR','DIF','Difusor','Clima',()=>cTerm('DIF'),'Difusor con tamaño y caudal de aire (m³/h). G gira 90°. Inserta varios seguidos.'],
+  ['REJILLA','REJ','Rejilla','Clima',()=>cTerm('REJ'),'Rejilla de impulsión o retorno con tamaño y caudal de aire (m³/h).'],
   ['UI','UDI','Ud. interior','Clima',()=>cSym('UI'),'Unidad interior de conductos.'],
   ['CASSETTE','CAS','Cassette','Clima',()=>cSym('CAS'),'Unidad cassette de techo.'],
   ['UE','UDE','Ud. exterior','Clima',()=>cSym('UE'),'Unidad exterior (condensadora).'],
@@ -3353,9 +3385,9 @@ function refresh(){
   if(!s.length){info.textContent='Nada seleccionado. Haga clic en objetos o arrastre una ventana para ver y cambiar sus propiedades.';return}
   const same=f=>{const v=s.map(f);return v.every(x=>x===v[0])?v[0]:'__mix'},MIX='<option value="__mix" selected>— varios —</option>';
   const lay=same(e=>e.layer),col=same(e=>e.color==null?'BYLAYER':String(e.color)),lt=same(e=>e.lt||'BYLAYER'),lts=same(e=>e.lts||1),lw=same(e=>e.lw==null?'BYLAYER':String(e.lw));
-  const NAMES={line:'línea',pline:'polilínea',circle:'círculo',arc:'arco',text:'texto',dim:'cota',vp:'ventana'};
+  const NAMES={term:'terminal',duct:'conducto',line:'línea',pline:'polilínea',circle:'círculo',arc:'arco',text:'texto',dim:'cota',vp:'ventana'};
   const kinds=same(e=>e.t),vps=s.every(e=>e.t==='vp');
-  let h=`<div><b style="color:var(--ink)">${s.length}</b> ${kinds==='__mix'?'objetos':esc(NAMES[kinds]||'objeto')+(s.length>1?'s':'')}</div>`;
+  let h=`<div><b style="color:var(--ink)">${s.length}</b> ${kinds==='__mix'?'objetos':kinds==='term'?(s.length>1?'difusores o rejillas':'difusor o rejilla'):esc(NAMES[kinds]||'objeto')+(s.length>1?'s':'')}</div>`;
   h+=`<label class="pr"><span>Capa</span><select id="pLay" class="inp">${lay==='__mix'?MIX:''}${layers.map(l=>`<option ${l.name===lay?'selected':''}>${esc(l.name)}</option>`).join('')}</select></label>`;
   h+=`<label class="pr"><span>Color</span><select id="pCol" class="inp">${col==='__mix'?MIX:''}<option value="BYLAYER" ${col==='BYLAYER'?'selected':''}>PorCapa</option>${COLS.map(c=>`<option value="${c[0]}" ${String(c[0])===col?'selected':''}>${c[1]}</option>`).join('')}${col!=='__mix'&&col!=='BYLAYER'&&!COLS.some(c=>String(c[0])===col)?`<option value="${col}" selected>Color ${col}</option>`:''}</select></label>`;
   if(!vps){
@@ -3367,11 +3399,20 @@ function refresh(){
     h+=`<label class="pr"><span>Escala ventana</span><select id="pDen" class="inp">${den==='__mix'?MIX:''}${DENS.map(d=>`<option value="${d}" ${d===den?'selected':''}>${scaleStr(d)}</option>`).join('')}${den!=='__mix'&&!DENS.includes(den)?`<option value="${den}" selected>${scaleStr(den)}</option>`:''}</select></label>`;
     if(s.length===1)h+=`<div class="row" style="margin-top:8px"><button class="btn" id="pCen">Centrar dibujo</button><button class="btn" id="pIn">Entrar</button></div>`;
   }
+  const tms=s.filter(e=>e.t==='term');
+  if(tms.length){const sz=same(e=>e.t==='term'?fmt(e.w)+'x'+fmt(e.h):'__mix'),qq=same(e=>e.t==='term'?String(e.q||0):'__mix'),tot=tms.reduce((a,e)=>a+(+e.q||0),0);
+    h+=`<h2 style="margin:.7rem 0 .3rem">${tms.length===s.length?'':'Difusores y rejillas'}</h2><label class="pr"><span>Tamaño (mm)</span><input id="pTSz" class="inp" value="${sz==='__mix'?'':sz}" placeholder="— varios —"></label>`;
+    h+=`<label class="pr"><span>Caudal de aire (m³/h)</span><input id="pTQ" class="inp" inputmode="decimal" value="${qq==='__mix'?'':qq}" placeholder="— varios —"></label>`;
+    if(tms.length>1)h+=`<div style="margin:.3rem 0">Caudal total: <b style="color:var(--ink)">${fmtQ(tot)} m³/h</b> (${tms.length} elementos)</div>`;
+    h+=`<label class="chk"><input type="checkbox" id="pTL" ${tms.every(e=>e.lbl!==false)?'checked':''}> Mostrar tamaño y caudal en el plano</label>`}
   h+=`<div class="row" style="margin-top:10px"><button class="btn dan" id="selDel">Borrar</button><button class="btn" id="selNone">Quitar selección</button></div>`;
   info.innerHTML=h;
   const ch=(id,fn)=>{const el=$(id);if(el)el.onchange=ev=>{const v=ev.target.value;if(v==='__mix')return;pushUndo();s.forEach(e=>{fn(e,v);delete e._bb});after()}};
   ch('#pLay',(e,v)=>e.layer=v);ch('#pCol',(e,v)=>{if(v==='BYLAYER')delete e.color;else e.color=+v});ch('#pLt',(e,v)=>{if(v==='BYLAYER')delete e.lt;else e.lt=v});ch('#pLw',(e,v)=>{if(v==='BYLAYER')delete e.lw;else e.lw=+v});ch('#pDen',(e,v)=>e.den=+v);
   const lt2=$('#pLts');if(lt2)lt2.onchange=()=>{const v=+lt2.value.replace(',','.');if(!(v>0))return;pushUndo();s.forEach(e=>{if(v===1)delete e.lts;else e.lts=v});after()};
+  const tSz=$('#pTSz');if(tSz)tSz.onchange=()=>{const mm=tSz.value.replace(/,/g,'.').match(/^\s*(\d+(?:\.\d+)?)\s*(?:[x×X*]\s*(\d+(?:\.\d+)?))?\s*$/);if(!mm||!(+mm[1]>0)){msg('Escriba el tamaño como ancho x alto, por ejemplo 600x600','e');return}pushUndo();tms.forEach(e=>{e.w=+mm[1];e.h=mm[2]?+mm[2]:+mm[1];delete e._bb});after()};
+  const tQ=$('#pTQ');if(tQ)tQ.onchange=()=>{const v=+tQ.value.replace(/\./g,'').replace(',','.');if(!(v>=0)||tQ.value.trim()===''){msg('Escriba el caudal en m³/h','e');return}pushUndo();tms.forEach(e=>{e.q=v});after()};
+  const tL=$('#pTL');if(tL)tL.onchange=()=>{pushUndo();tms.forEach(e=>{if(tL.checked)delete e.lbl;else e.lbl=false;delete e._bb});after()};
   const pc=$('#pCen');if(pc)pc.onclick=()=>{pushUndo();const b=modelExt();s[0].cx=(b[0]+b[2])/2;s[0].cy=(b[1]+b[3])/2;after()};
   const pi=$('#pIn');if(pi)pi.onclick=()=>setAct(s[0]);
   $('#selDel').onclick=()=>{pushUndo();s.forEach(e=>{const i=ents.indexOf(e);if(i>=0)ents.splice(i,1)});sel.clear();after()};
@@ -3497,8 +3538,8 @@ function sample(){
   A([{t:'duct',kind:'rect',pts:[[1800,4900],[1800,3900]],sec:[{w:250,h:200}],tr:['c'],fit0:'te'}],'CONDUCTOS');
   A([{t:'duct',kind:'rect',pts:[[4000,4900],[4000,3900]],sec:[{w:250,h:200}],tr:['c'],fit0:'45'}],'CONDUCTOS');
   A([{t:'duct',kind:'flexA',pts:[[7300,4600],[7300,3600],[7300,2800]],sec:[{w:200,h:200},{w:200,h:200}],tr:['c','c']}],'CONDUCTOS');
-  for(const p of [[1800,3600],[4000,3600],[7300,2500]])A(place('DIF',600,0,p),'DIFUSORES',ngid++);
-  A(place('REJ',600,0,[3000,600]),'DIFUSORES',ngid++);
+  A([[1800,3600,350],[4000,3600,350],[7300,2500,400]].map(([x,y,q])=>({t:'term',k:'DIF',x,y,rot:0,w:600,h:600,q})),'DIFUSORES');
+  A([{t:'term',k:'REJ',x:3000,y:600,rot:0,w:600,h:150,q:1100}],'DIFUSORES');
   A(place('UE',900,90,[10300,3000]),'EQUIPOS',ngid++);
   A([PL_([[10120,3000],[9600,3000],[9600,4900],[7800,4900]],false,{lt:'DASHED'})],'TUBERIAS');
   A([{t:'dim',x1:-100,y1:-100,x2:9100,y2:-100,x3:4500,y3:-900,ang:0,ds:'ISO-25',k:1.6},{t:'dim',x1:-100,y1:-100,x2:-100,y2:6100,x3:-900,y3:3000,ang:Math.PI/2,ds:'ISO-25',k:1.6}],'COTAS');
