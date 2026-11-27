@@ -299,6 +299,7 @@ const LWS=[0.05,0.09,0.13,0.15,0.18,0.2,0.25,0.3,0.35,0.4,0.5,0.53,0.6,0.7,0.8,1
 const PAPERS={A4:[297,210],A3:[420,297],A2:[594,420],A1:[841,594],A0:[1189,841]};
 const DENS=[1,2,5,10,20,25,50,75,100,125,150,200,250,300,400,500,750,1000,1500,2000,2500,5000];
 const CHANGELOG=[
+  {v:'1.8',d:'2026-11-27',t:['Formato propio .cadclima: Guardar (Ctrl+S) conserva todo para seguir editando (conductos, caudales, presentaciones, cajetín)','Guardar como: CAD Clima o DXF para ZWCAD','Cajetín: carga de plantilla propia DWG/DXF con campos (atributos o {CAMPO}) y cuadro de datos, CAJETIN']},
   {v:'1.7.1',d:'2026-11-27',t:['Vista previa de selección: el objeto bajo el cursor se resalta antes de hacer clic','Pinzamientos: también se pueden arrastrar (pulsar, mover y soltar) además de clic y clic','Pinzamientos más fáciles de acertar y la mira de designación respeta el tamaño de Opciones']},
   {v:'1.7',d:'2026-11-27',t:['Cinta de opciones como ZWCAD 2024: pestañas Inicio, Anotar, Insertar, Vistas, Herramientas, Administrar, Exportar y Exprés','Botones con desplegable (Círculo, Arco, Polilínea, Matriz, Lineal, Pegar…) y lanzadores de cuadro en los grupos','CÍRCULO y ARCO con todas sus opciones: 2P, 3P, Ttr, tan-tan-tan, inicio-centro-fin, inicio-fin-radio, continuar…','Paleta Propiedades acoplada a la izquierda con General, Vista y Varios','Barra de acceso rápido y título como ZWCAD']},
   {v:'1.6',d:'2026-11-26',t:['Menú Acerca de con la versión y su fecha','Apariencia configurable: temas de color, color de acento, tipo de letra, tamaños y fondos']},
@@ -812,12 +813,13 @@ function loadStyles(o){
     if(e.t==='ldr'&&!e.ms){e.ms=CMS;if(e.h){const B=MSTY[CMS];e.k=e.h/(B.txt*B.scale);delete e.h}delete e.asz}
   }
 }
-const snapState=()=>JSON.stringify({model,layouts,layers,ltd:LTD,lts:LTS,celt:CELT,celts:CELTS,cecol:CECOL,celw:CELW,dsty:DSTY,cds:CDS,dso:DSO,tsty:TSTY,cts:CTS,msty:MSTY,cms:CMS,cur,nid,ngid},rep);
+let CJ={},CJT=null;
+const snapState=()=>JSON.stringify({cj:CJ,cjt:CJT,model,layouts,layers,ltd:LTD,lts:LTS,celt:CELT,celts:CELTS,cecol:CECOL,celw:CELW,dsty:DSTY,cds:CDS,dso:DSO,tsty:TSTY,cts:CTS,msty:MSTY,cms:CMS,cur,nid,ngid},rep);
 function pushUndo(){undoSt.push(snapState());if(undoSt.length>100)undoSt.shift();redoSt=[]}
 function restore(s){
   const o=JSON.parse(s);model=o.model||o.ents||[];layouts=o.layouts||[];layers=(o.layers||[]).map(l=>({lt:'CONTINUOUS',lw:0.25,plot:true,...l}));
   LTD=Object.assign(JSON.parse(JSON.stringify(LTD0)),o.ltd||{});LTS=o.lts!=null?o.lts:50;CELT=o.celt||'BYLAYER';CELTS=o.celts||1;CECOL=o.cecol!=null?o.cecol:null;CELW=o.celw!=null?o.celw:null;loadStyles(o);for(const e of model)if(COMP[e.t])delete e._bb;
-  cur=o.cur||'0';nid=o.nid||1;ngid=o.ngid||1;if(!layerOf(cur))cur=layers.length?layers[0].name:'0';
+  CJ=o.cj||{};CJT=o.cjt||null;cur=o.cur||'0';nid=o.nid||1;ngid=o.ngid||1;if(!layerOf(cur))cur=layers.length?layers[0].name:'0';
   if(space!=='model'&&!layouts[space])space='model';act=null;ents=space==='model'?model:layouts[space].ents;sel.clear();syncView();
 }
 function mod(){if(running){if(!running.dirty){pushUndo();running.dirty=true}}else pushUndo()}
@@ -2730,7 +2732,58 @@ function cPng(){
   if(space==='model')renderModel(x,{cx:view.cx,cy:view.cy,s:view.s,W,H},true,false);else{const L=layouts[space];renderLayout(x,L,{...L.pv,W,H},false)}
   c.toBlob(b=>{if(b)saveOut('plano-clima.png',b)},'image/png');
 }
-function cOpen(){const f=$('#file');f.accept='.dxf,.dwg,.DXF,.DWG';f.value='';f.click()}
+
+/* ---------- formato propio .cadclima (guarda todo: conductos, caudales, presentaciones, cajetín) ---------- */
+async function cSaveNative(){
+  const data=JSON.stringify({app:'CAD Clima 2D',ver:APPV.v,fecha:new Date().toISOString(),doc:JSON.parse(snapState()),img:IMGS});
+  await saveOut(docName+'.cadclima',new Blob([data],{type:'application/json'}));
+}
+function cSaveAs(){dialog('Guardar como',`<p style="margin:0 0 .6rem">¿En qué formato?</p>
+  <p class="tip" style="margin:0">CAD Clima conserva todo para seguir editándolo aquí (conductos conectados, caudales, presentaciones y cajetín). DXF es para abrirlo en ZWCAD o AutoCAD, y desde ahí guardarlo como DWG.</p>`,
+  [['Cancelar'],['DXF (para ZWCAD)',()=>run('GUARDARDXF')],['CAD Clima',()=>cSaveNative(),true]])}
+/* ---------- cajetín: plantilla propia y datos ---------- */
+let cjPick=null;
+const CJLBL={EMPRESA:'Empresa',PROYECTO:'Proyecto',PLANO:'Plano',ESCALA:'Escala',FECHA:'Fecha',DIBUJADO:'Dibujado',NPLANO:'Nº de plano'};
+function cjFields(L){const o=new Map();for(const e of L.ents)if(e.tbk&&!o.has(e.tbk))o.set(e.tbk,e);return o}
+function cjPlace(tpl,L){
+  const [pw,ph]=paperSize(L);let b=[Infinity,Infinity,-Infinity,-Infinity];for(const e of tpl){const q=bb(e);b=[Math.min(b[0],q[0]),Math.min(b[1],q[1]),Math.max(b[2],q[2]),Math.max(b[3],q[3])]}
+  const bw=b[2]-b[0],bh=b[3]-b[1];let k=1,dx,dy;
+  const full=bw>pw*0.8&&bh>ph*0.8;           /* plantilla con marco de hoja completa */
+  if(full){k=Math.min(pw/bw,ph/bh);if(Math.abs(k-1)<0.03)k=1;dx=-b[0]*k+(pw-bw*k)/2;dy=-b[1]*k+(ph-bh*k)/2}
+  else{if(bw>pw-20)k=(pw-20)/bw;dx=pw-10-b[2]*k;dy=10-b[1]*k}   /* solo el cajetín: abajo a la derecha */
+  const M=[k,0,0,k,dx,dy];return tpl.map(e=>{const c=applyM(clone(e),M);c.tb=1;delete c.id;return c});
+}
+function cjApplyTpl(L,tpl){
+  const keep=L.ents.filter(e=>!e.tb),vals={...CJ};for(const [k,e] of cjFields(L))if(vals[k]==null)vals[k]=e.s;
+  const ne=tpl.map(e=>{const c=clone(e);c.id=nid++;if(c.tbk&&vals[c.tbk]!=null&&c.tbk!=='ESCALA')c.s=vals[c.tbk];return c});L.ents=[...ne,...keep];if(space===layouts.indexOf(L))ents=L.ents;
+}
+async function cjLoadTemplate(f){
+  try{let buf=await f.arrayBuffer();if(/\.dwg$/i.test(f.name)){msg('Leyendo DWG «'+f.name+'»…');buf=await dwgToDxf(buf)}
+    const head=new TextDecoder('latin1').decode(buf.slice(0,200000)),m=head.match(/\$ACADVER\s*\r?\n\s*1\s*\r?\n\s*AC(\d+)/),ver=m?+m[1]:1009;
+    const r=parseDXF(new TextDecoder(ver>=1021?'utf-8':'windows-1252').decode(buf));if(!r.ents.length){msg('La plantilla no tiene objetos','e');return}
+    for(const l of r.layers)if(!layerOf(l.name))layers.push(l);Object.assign(LTD,r.ltd);
+    /* campos: atributos (etiqueta) o textos marcados como {CAMPO}, [CAMPO] o <<CAMPO>> */
+    let nf=0;for(const e of r.ents){if(e.t!=='text'&&e.t!=='mtext')continue;const mm=String(e.s||'').match(/^\s*(?:\{\{?|\[\[?|<<)\s*([^\]}>]{1,40}?)\s*(?:\}\}?|\]\]?|>>)\s*$/);
+      const key=e.tag?e.tag.toUpperCase():mm?mm[1].toUpperCase().replace(/\s+/g,'_'):null;if(key){e.tbk=key;if(mm)e.s='';if(/^(ESCALA|SCALE)$/.test(key)){e.tbk='ESCALA';e.fld='ESCALA'}nf++}}
+    const L=layouts[space];if(!L){msg('Abra una presentación','e');return}
+    pushUndo();const tpl=cjPlace(r.ents,L);CJT={paper:L.paper,ori:L.ori,ents:tpl};cjApplyTpl(L,tpl);after();
+    msg(`Plantilla de cajetín «${f.name}» cargada: ${tpl.length} objetos y ${nf} campo(s). Se usará también en las presentaciones nuevas.`,'c');cCajetin();
+  }catch(e){console.error(e);msg('No se pudo leer la plantilla: '+e.message,'e')}
+}
+function cCajetin(){
+  if(space==='model'){msg('El cajetín está en las presentaciones: cambie a una pestaña de presentación (abajo) y vuelva a escribir CAJETIN.','e');return}
+  const L=layouts[space],F=cjFields(L);
+  const rows=[...F.entries()].map(([k,e])=>`<label class="pr"><span>${esc(CJLBL[k]||k.charAt(0)+k.slice(1).toLowerCase().replace(/_/g,' '))}</span>${k==='ESCALA'&&e.fld?`<input class="inp" disabled value="Automática (${esc(txtOf(e))})">`:`<input class="inp" data-k="${esc(k)}" value="${esc(e.s||CJ[k]||'')}">`}</label>`).join('');
+  dialog('Cajetín — '+L.name,`${rows||'<p class="tip">Esta presentación no tiene campos de cajetín. Cargue su plantilla.</p>'}
+    <label class="chk" style="margin-top:.4rem"><input type="checkbox" id="cjAll" checked> Aplicar también al resto de presentaciones (salvo el nº de plano)</label>
+    <p class="tip" style="margin:.6rem 0 0">Plantilla propia: un DWG o DXF con su cajetín. Los campos se reconocen por los atributos del bloque o por textos escritos como {TITULAR}, [EMPLAZAMIENTO] o &lt;&lt;FECHA&gt;&gt;.</p>`,
+    [['Cajetín estándar',()=>{pushUndo();CJT=null;const [pw,ph]=paperSize(L),vals={...TBDEF(),...CJ};L.ents=[...tbEnts(pw,ph,vals).map(e=>({...e,id:nid++})),...L.ents.filter(e=>!e.tb)];ents=L.ents;after();msg('Cajetín estándar restablecido')}],
+     ['Cargar plantilla DWG/DXF…',()=>{cjPick=cjLoadTemplate;const f=$('#file');f.accept='.dwg,.dxf,.DWG,.DXF';f.value='';f.click()}],['Cancelar'],
+     ['Aceptar',()=>{const v={};for(const i of document.querySelectorAll('#dlgB input[data-k]'))v[i.dataset.k]=i.value;pushUndo();Object.assign(CJ,v);
+       const all=$('#cjAll').checked;for(const LL of all?layouts:[L])for(const e of LL.ents)if(e.tbk&&v[e.tbk]!=null&&!(LL!==L&&/^(NPLANO|N_PLANO|NUM_PLANO|PLANO_N|NO_PLANO)$/.test(e.tbk))){e.s=v[e.tbk];delete e._bb}
+       after();msg('Cajetín actualizado')},true]]);
+}
+function cOpen(){const f=$('#file');f.accept='.cadclima,.dxf,.dwg,.DXF,.DWG';f.value='';f.click()}
 function cImportPdf(){const f=$('#file');f.accept='.pdf,.PDF';f.value='';f.click()}
 const LIBDWG='https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.9.3/wasm/libredwg-web.js',LIBDWGW='https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.9.3/wasm/libredwg-web.wasm';
 let dwgMod=null;
@@ -2747,21 +2800,23 @@ async function dwgToDxf(buf){
 }
 $('#file').addEventListener('change',ev=>{const f=ev.target.files[0];if(f)openFileObj(f)});
 async function openFileObj(f){
+  if(cjPick){const cb=cjPick;cjPick=null;return cb(f)}
   try{let buf=await f.arrayBuffer();
+    if(/\.cadclima$/i.test(f.name)){const o=JSON.parse(new TextDecoder('utf-8').decode(buf));if(!o||!o.doc)throw new Error('no es un archivo de CAD Clima');pushUndo();space='model';restore(JSON.stringify(o.doc));if(o.img)IMGS=o.img;docName=f.name.replace(/\.cadclima$/i,'');docExt='.cadclima';setTitle();renderSpaces();zoomExt();after();msg(`Abierto «${f.name}» (CAD Clima ${o.ver||''}): ${model.length} objetos, ${layouts.length} presentación(es).`,'c');return}
     if(/\.pdf$/i.test(f.name)){await importPdf(f,buf);return}
     if(/\.dwg$/i.test(f.name)){msg('Leyendo DWG «'+f.name+'»…');buf=await dwgToDxf(buf)}
     const head=new TextDecoder('latin1').decode(buf.slice(0,200000));const m=head.match(/\$ACADVER\s*\r?\n\s*1\s*\r?\n\s*AC(\d+)/);
     if(/^AutoCAD Binary DXF/.test(head)){msg('Este DXF es binario. Guárdelo como DXF ASCII desde ZWCAD.','e');return}
     const ver=m?+m[1]:1009;const txt=new TextDecoder(ver>=1021?'utf-8':'windows-1252').decode(buf);
     const r=parseDXF(txt);pushUndo();model=r.ents;Object.assign(LTD,r.ltd);if(r.lts>0)LTS=r.lts;const keep=layers.filter(l=>layouts.some(L=>L.ents.some(e=>e.layer===l.name)));layers=r.layers;for(const l of keep)if(!layerOf(l.name))layers.push(l);cur=layerOf('0')?'0':layers[0].name;space='model';act=null;ents=model;sel.clear();syncView();
-    docName=f.name.replace(/\.(dxf|dwg)$/i,'');setTitle();
+    docName=f.name.replace(/\.(dxf|dwg)$/i,'');docExt=(f.name.match(/\.(dxf|dwg)$/i)||['.dxf'])[0].toLowerCase();setTitle();
     msg(`Abierto «${f.name}»: ${model.length} objetos, ${layers.length} capas${r.skip?`. Se omitieron ${r.skip} objetos no soportados (sombreados, sólidos…)`:''}.`,'c');
     zoomExt();after();
   }catch(e){console.error(e);msg('No se pudo leer el DXF: '+e.message,'e')}
 }
 /* arrastrar y soltar DXF/DWG/PDF sobre la ventana */
 document.addEventListener('dragover',ev=>{if(ev.dataTransfer&&[...ev.dataTransfer.types].includes('Files')){ev.preventDefault();ev.dataTransfer.dropEffect='copy'}});
-document.addEventListener('drop',ev=>{const f=ev.dataTransfer&&ev.dataTransfer.files[0];if(!f)return;ev.preventDefault();if(/\.(dxf|dwg|pdf)$/i.test(f.name))openFileObj(f);else msg('Arrastre un archivo DXF, DWG o PDF','e')});
+document.addEventListener('drop',ev=>{const f=ev.dataTransfer&&ev.dataTransfer.files[0];if(!f)return;ev.preventDefault();if(/\.(dxf|dwg|pdf|cadclima)$/i.test(f.name))openFileObj(f);else msg('Arrastre un archivo CAD Clima, DXF, DWG o PDF','e')});
 /* app instalada: abrir los DXF/DWG con doble clic desde el Explorador */
 if('launchQueue' in window)window.launchQueue.setConsumer(async p=>{if(p.files&&p.files.length){const f=await p.files[0].getFile();openFileObj(f)}});
 /* instalación como aplicación (PWA) */
@@ -2813,7 +2868,7 @@ function parseDXF(txt){
       case 'CIRCLE':e={t:'circle',cx:f(10),cy:f(20),r:f(40)};break;
       case 'ARC':e={t:'arc',cx:f(10),cy:f(20),r:f(40),a1:f(50)*D2R,a2:f(51)*D2R};break;
       case 'LWPOLYLINE':{const vs=[];for(const [c,v] of r.d){if(c===10)vs.push([+v,0,0]);else if(c===20&&vs.length)vs[vs.length-1][1]=+v;else if(c===42&&vs.length)vs[vs.length-1][2]=+v}const cl=!!(f(70)&1);e={t:'pline',pts:bulgePts(vs,cl),closed:cl};break}
-      case 'TEXT':case 'ATTRIB':{if(t==='ATTRIB'&&(f(70)&1))return;const h72=f(72),v=t==='ATTRIB'?f(74):f(73),useA=(h72||v)&&gv(r,11)!=null;const s=fix(gv(r,1)||'');if(!s.trim())return;e={t:'text',x:useA?f(11):f(10),y:useA?f(21):f(20),h:f(40)||2.5,s,rot:f(50)*D2R,al:(h72===4||(v===2&&h72===1))?'m':h72===1?'c':h72===2?'r':'l'};break}
+      case 'TEXT':case 'ATTRIB':{if(t==='ATTRIB'&&(f(70)&1))return;const h72=f(72),v=t==='ATTRIB'?f(74):f(73),useA=(h72||v)&&gv(r,11)!=null;const s=fix(gv(r,1)||''),tag=t==='ATTRIB'?String(gv(r,2)||'').trim():'';if(!s.trim()&&!tag)return;e={t:'text',...(tag?{tag}:{}),x:useA?f(11):f(10),y:useA?f(21):f(20),h:f(40)||2.5,s,rot:f(50)*D2R,al:(h72===4||(v===2&&h72===1))?'m':h72===1?'c':h72===2?'r':'l'};break}
       case 'MTEXT':{let str=gs(r,3).join('')+(gv(r,1)||'');str=fix(str).replace(/\\[Pp]/g,'\n').replace(/\\[A-Za-z][^;\\{}]*;/g,'').replace(/\\[~ ]/g,' ').replace(/[{}]/g,'').replace(/\\\\/g,'\\');if(!str.trim())return;let rot=f(50)*D2R;if(gv(r,11)!=null&&gv(r,50)==null)rot=Math.atan2(f(21),f(11));e={t:'mtext',x:f(10),y:f(20),h:f(40)||2.5,w:f(41)||0,at:f(71)||1,s:str,rot};break}
       case 'LEADER':{const xs=gs(r,10),ys=gs(r,20);if(xs.length<2){skip++;return}e={t:'pline',pts:xs.map((x,k)=>[+x,+ys[k]]),closed:false};break}
       case 'ELLIPSE':{const cx=f(10),cy=f(20),mx=f(11),my=f(21),ra=f(40)||1,p0=gv(r,41)!=null?f(41):0,p1=gv(r,42)!=null?f(42):TAU,sp=span(p0,p1)||TAU,n=Math.max(8,Math.ceil(sp/TAU*64)),pts=[];for(let k=0;k<=n;k++){const u=p0+sp*k/n;pts.push([cx+mx*Math.cos(u)-my*ra*Math.sin(u),cy+my*Math.cos(u)+mx*ra*Math.sin(u)])}e={t:'pline',pts,closed:false};break}
@@ -2892,7 +2947,8 @@ function makeVp(r){const b=modelExt(),den=fitDen(b,r[2]-r[0],r[3]-r[1]);return {
 function ensurePaperLayers(){ensureLayer('CAJETIN',7,{lw:0.25});ensureLayer('VENTANAS',8,{plot:false})}
 function newLayoutObj(name,paper,ori){
   ensurePaperLayers();const L={name,paper,ori,ents:[],pv:null},[pw,ph]=paperSize(L);
-  for(const e of tbEnts(pw,ph,TBDEF())){e.id=nid++;L.ents.push(e)}
+  if(CJT&&CJT.ents&&CJT.ents.length){for(const e0 of CJT.ents){const e=clone(e0);e.id=nid++;if(e.tbk&&CJ[e.tbk]!=null&&e.tbk!=='ESCALA'&&!/^(NPLANO)$/.test(e.tbk))e.s=CJ[e.tbk];L.ents.push(e)}}
+  else for(const e of tbEnts(pw,ph,{...TBDEF(),...CJ})){e.id=nid++;L.ents.push(e)}
   const v=makeVp(vpArea(pw,ph));v.id=nid++;L.ents.push(v);return L;
 }
 const paperOpts=(p,o)=>`<label class="pr"><span>Papel</span><select id="lpP" class="inp">${Object.keys(PAPERS).map(k=>`<option ${k===p?'selected':''}>${k}</option>`).join('')}</select></label><label class="pr"><span>Orientación</span><select id="lpO" class="inp"><option value="H" ${o!=='V'?'selected':''}>Horizontal</option><option value="V" ${o==='V'?'selected':''}>Vertical</option></select></label>`;
@@ -3383,7 +3439,10 @@ const CMDS=[
   ['NUEVO','NEW QNEW','Nuevo','Archivo',cNew,'Empieza un plano vacío.'],
   ['ABRIR','OPEN','Abrir','Archivo',cOpen,'Abre un DWG o DXF de ZWCAD/AutoCAD (bloques y cotas se descomponen).'],
   ['IMPORTARPDF','PDFIMPORT','Importar PDF','Insertar',cImportPdf,'Convierte un plano en PDF en una base separada por capas: conductos, tuberías frigoríficas, equipos y difusión.'],
-  ['GUARDAR','SAVE QSAVE GUARDARR GUARDARCOMO SAVEAS DXFOUT','Guardar DXF','Archivo',cSave,'Guarda el Modelo en DXF para abrirlo en ZWCAD (también Ctrl+S).'],
+  ['GUARDAR','SAVE QSAVE GUARDARR','Guardar','Archivo',cSaveNative,'Guarda el dibujo completo en formato CAD Clima (.cadclima) para seguir editándolo: conductos, caudales, presentaciones y cajetín (también Ctrl+S).'],
+  ['GUARDARCOMO','SAVEAS','Guardar como','Archivo',cSaveAs,'Guarda en formato CAD Clima o en DXF para ZWCAD (Ctrl+Mayús+S).'],
+  ['GUARDARDXF','DXFOUT GDXF','Guardar DXF','Archivo',cSave,'Guarda el Modelo en DXF para abrirlo en ZWCAD o AutoCAD y guardarlo allí como DWG.'],
+  ['CAJETIN','CJ TITLEBLOCK','Cajetín','Presentación',cCajetin,'Datos del cajetín de la presentación y carga de su propia plantilla DWG/DXF con campos.'],
   ['U','U','Deshacer','Archivo',()=>{undo()},'Deshace la última operación (también Ctrl+Z).'],
   ['DESHACER','UNDO','Deshacer varias','Archivo',cUndoN,'Pide cuántas operaciones deshacer.'],
   ['REHACER','REDO','Rehacer','Archivo',()=>{redo()},'Rehace lo deshecho (también Ctrl+Y).'],
@@ -3551,6 +3610,7 @@ ENCUADRE:`<path d="M8 13V6a1.5 1.5 0 0 1 3 0v6M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14
 COLOR:`<circle cx="8" cy="9" r="4.5" stroke="${IR}"/><circle cx="16" cy="9" r="4.5" stroke="${IG}"/><circle cx="12" cy="15" r="4.5" stroke="${IA}"/>`,
 COMANDOS:`<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M6 9l3 3-3 3M11 15h6" stroke="${IA}"/>`,
 _:`<rect x="4" y="4" width="16" height="16"/>`};
+ICO.GUARDARCOMO=ICO.GUARDARCOMO||ICO.GUARDAR;ICO.GUARDARDXF=ICO.GUARDARDXF||ICO.GUARDAR;ICO.CAJETIN=ICO.CAJETIN||`<rect x="3" y="4" width="18" height="16"/><path d="M10 14h11M10 14v6M15 17h6M15 14v6" stroke="${IA}"/>`;
 const ic=n=>!ICO[n]&&/^(CAP|IGUALARCAPA)/.test(n)?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO.LAYX}<text x="14" y="23" font-size="7" fill="currentColor" stroke="none">${{CAPDES:'off',CAPAISL:'ais',CAPINUT:'inu',CAPBLQ:'blq',CAPACT:'act',IGUALARCAPA:'igu',CAPPREV:'prv',CAPDESISL:'des',CAPACTTODO:'on',CAPDESBLQ:'dbl',CAPREUT:'reu',CAPCAMBIAR:'cam',CAPCOPIAR:'cop',CAPFUSIONAR:'fus',CAPBORRAR:'sup',CAPRECORRER:'rec',CAPAESTADO:'est',CAPCONGVP:'vp'}[n]||''}</text></svg>`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[n]||ICO._}</svg>`;
 const TABS=[['inicio','Inicio'],['anotar','Anotar'],['insertar','Insertar'],['vista','Vistas'],['herram','Herramientas'],['admin','Administrar'],['salida','Exportar'],['expres','Exprés'],['clima','Clima'],['pres','Presentación']];
 /* elementos de la cinta: 'CMD' (grande o pequeño), '!CMD' (solo icono), {c,l,dd:[[macro,etiqueta],null,...],io} (con desplegable).
@@ -3608,10 +3668,10 @@ const RIB={
   vista:[{t:'Navegar',cols:['ZOOM','ENCUADRE',['REDIBUJA','REGEN','LIMPIARPANTALLA']]},{t:'Ventanas',cols:['VMULT',['ESPACIOM','ESPACIOP']]},{t:'Paletas',cols:['PROPIEDADES','CAPA',['PROPIEDADESRAPIDAS','CALCURAPIDA']]},{t:'Interfaz',cols:['APARIENCIA','OPCIONES',['BOTONDERECHO','REFENT']]}],
   herram:[{t:'Consulta',cols:['DIST',['AREA','LIST','ID'],['MEDIRGEOM']]},{t:'Selección',cols:['SELECR',['SELECCSIMILAR','BUSCAR']]},{t:'Utilidades',cols:['CALCURAPIDA','COMANDOS','INSTALARAPP']}],
   admin:[{t:'Estilos',cols:[{c:'ESTILO',l:'Estilo de texto'},'ACOESTIL','ESTILDIRECTRIZM',['TIPOLIN','ESCALATL','GROSORLIN']]},{t:'Dibujo',cols:['LIMPIA','UNIDADES',['RENOMBRA','AUDIT','RECUPERA']]},{t:'Personalizar',cols:['OPCIONES','BOTONDERECHO','APARIENCIA']}],
-  salida:[{t:'Trazar',cols:['TRAZAR','CONFIGPAG']},{t:'Exportar',cols:['GUARDAR','PNG']},{t:'Importar',cols:['ABRIR','IMPORTARPDF']}],
+  salida:[{t:'Trazar',cols:['TRAZAR','CONFIGPAG','CAJETIN']},{t:'Exportar',cols:['GUARDAR','GUARDARDXF','PNG']},{t:'Importar',cols:['ABRIR','IMPORTARPDF']}],
   expres:[{t:'Herramientas exprés',cols:['BORRACOTAS',['AISLAROBJETOS','OCULTAROBJETOS','FINAISLAROBJETOS'],['PEGAORIG','ORDENAOBJETOS','SELECCSIMILAR']]}],
   clima:[{t:'Conductos y redes',cols:['CONDUCTO','EDITCONDUCTO','PREDIMENSIONAR','TUBERIA','MURO']},{t:'Difusión',cols:['DIFUSOR','REJILLA']},{t:'Equipos',cols:['UI','CASSETTE','UE']}],
-  pres:[{t:'Presentación',cols:['PRESENTACION','CONFIGPAG']},{t:'Ventanas de presentación',cols:['VMULT',['ESPACIOM','ESPACIOP']]}]};
+  pres:[{t:'Presentación',cols:['PRESENTACION','CONFIGPAG','CAJETIN']},{t:'Ventanas de presentación',cols:['VMULT',['ESPACIOM','ESPACIOP']]}]};
 ALIAS={};{const objs=CMDS.map(([n,al,label,grp,f,desc])=>({n,al,label,f,desc}));for(const c of objs)for(const a of c.al.split(' '))if(a)ALIAS[a]=c;for(const c of objs)ALIAS[c.n]=c}
 const cmdInfo=n=>{const c=ALIAS[n];if(c)return {ok:true,label:c.label,desc:c.desc};const p=PEND[n];if(p)return {ok:false,label:p[2],desc:'Todavía no está disponible en CAD Clima 2D'};return {ok:false,label:RL[n]||n,desc:'Todavía no está disponible en CAD Clima 2D'}};
 let ddReg=[];
@@ -3671,8 +3731,8 @@ $('#rbody').addEventListener('change',ev=>{
   else{if(t.id==='rLay')cur=v;else if(t.id==='rCol')CECOL=v==='BYLAYER'?null:+v;else if(t.id==='rLt')CELT=v;else if(t.id==='rLw')CELW=v==='BYLAYER'?null:+v}
   after();if(matchMedia('(pointer:fine)').matches)inp.focus();
 });
-$('#qa').innerHTML=[['NUEVO','Nuevo (Ctrl+N)'],['ABRIR','Abrir (Ctrl+O)'],['GUARDAR','Guardar (Ctrl+S)'],['GUARDAR','Guardar como (Ctrl+Mayús+S)'],['TRAZAR','Trazar (Ctrl+P)'],['TRAZAR','Vista preliminar de trazado'],['U','Deshacer (Ctrl+Z)','U'],['REHACER','Rehacer (Ctrl+Y)','REHACER'],['AYUDA','Ayuda (F1)']].map(([c,l,dd])=>`<button class="qa" data-c="${c}" title="${l}" aria-label="${l}">${ic(c)}</button>${dd?`<button class="qd" data-dd="${dd}" title="${l}: más opciones" aria-label="${l}: más opciones">▾</button>`:''}`).join('')+`<select class="wks" title="Espacio de trabajo" aria-label="Espacio de trabajo"><option>Cinta de Opciones</option></select>`;
-$('#appm').innerHTML=[['NUEVO','Nuevo'],['ABRIR','Abrir DWG / DXF…'],['IMPORTARPDF','Importar PDF…'],['GUARDAR','Guardar como DXF…'],null,['PNG','Exportar imagen PNG'],['TRAZAR','Imprimir a PDF…'],null,['OPCIONES','Opciones…'],['APARIENCIA','Apariencia…'],['INSTALARAPP','Instalar como aplicación'],null,['AYUDA','Ayuda'],['ACERCADE','Acerca de CAD Clima 2D']].map(x=>x?`<button data-c="${x[0]}">${ic(x[0])}<span>${x[1]}</span></button>`:'<hr>').join('')+`<div style="padding:.5rem .8rem .3rem;color:var(--mute);font-size:.95rem;border-top:1px solid var(--brd);margin-top:.25rem">Versión ${APPV.v} · ${fdate(APPV.d)}</div>`;
+$('#qa').innerHTML=[['NUEVO','Nuevo (Ctrl+N)'],['ABRIR','Abrir (Ctrl+O)'],['GUARDAR','Guardar (Ctrl+S)'],['GUARDARCOMO','Guardar como (Ctrl+Mayús+S)'],['TRAZAR','Trazar (Ctrl+P)'],['TRAZAR','Vista preliminar de trazado'],['U','Deshacer (Ctrl+Z)','U'],['REHACER','Rehacer (Ctrl+Y)','REHACER'],['AYUDA','Ayuda (F1)']].map(([c,l,dd])=>`<button class="qa" data-c="${c}" title="${l}" aria-label="${l}">${ic(c)}</button>${dd?`<button class="qd" data-dd="${dd}" title="${l}: más opciones" aria-label="${l}: más opciones">▾</button>`:''}`).join('')+`<select class="wks" title="Espacio de trabajo" aria-label="Espacio de trabajo"><option>Cinta de Opciones</option></select>`;
+$('#appm').innerHTML=[['NUEVO','Nuevo'],['ABRIR','Abrir CAD Clima / DWG / DXF…'],['IMPORTARPDF','Importar PDF…'],['GUARDAR','Guardar'],['GUARDARCOMO','Guardar como…'],['GUARDARDXF','Guardar como DXF…'],null,['PNG','Exportar imagen PNG'],['TRAZAR','Imprimir a PDF…'],null,['OPCIONES','Opciones…'],['APARIENCIA','Apariencia…'],['INSTALARAPP','Instalar como aplicación'],null,['AYUDA','Ayuda'],['ACERCADE','Acerca de CAD Clima 2D']].map(x=>x?`<button data-c="${x[0]}">${ic(x[0])}<span>${x[1]}</span></button>`:'<hr>').join('')+`<div style="padding:.5rem .8rem .3rem;color:var(--mute);font-size:.95rem;border-top:1px solid var(--brd);margin-top:.25rem">Versión ${APPV.v} · ${fdate(APPV.d)}</div>`;
 $('#appb').addEventListener('click',ev=>{ev.stopPropagation();$('#appm').classList.toggle('open')});
 document.addEventListener('pointerdown',ev=>{if(!ev.target.closest('#appm,#appb'))$('#appm').classList.remove('open')});
 document.addEventListener('click',ev=>{const d=ev.target.closest('#rbody [data-dd],#qa [data-dd]');if(d){ev.stopPropagation();const list=d.closest('#qa')?DD[d.dataset.dd]:ddReg[+d.dataset.dd],r=d.getBoundingClientRect();
@@ -3691,7 +3751,8 @@ function toggleFull(){try{if(document.fullscreenElement)document.exitFullscreen(
 $('#side').addEventListener('click',ev=>{const b=ev.target.closest('[data-run]');if(b)run(b.dataset.run)});
 $('#sideX').onclick=()=>togglePal(false);
 function togglePal(force){const o=$('#side').classList.toggle('open',force);if(force!==undefined||true){S.palOpen=o;try{saveS()}catch(e){}}document.body.classList.toggle('palo',o);document.body.classList.toggle('pdock',S.palDock!==false);document.documentElement.style.setProperty('--pw',(S.palW||24)+'rem');if(o)refresh();requestAnimationFrame(resize)}
-function setTitle(){$('#fname').textContent=docName+'.dxf';$('#ftab').textContent=docName;try{localStorage.setItem('cadclima.name',docName)}catch(e){}}
+let docExt='.cadclima';
+function setTitle(){$('#fname').textContent=docName+docExt;$('#ftab').textContent=docName;try{localStorage.setItem('cadclima.name',docName)}catch(e){}}
 const lum=h=>{const n=parseInt(String(h).slice(1),16);return (0.299*((n>>16)&255)+0.587*((n>>8)&255)+0.114*(n&255))/255};
 function applyUI(){const r=document.documentElement.style;r.setProperty('--fs',(12*S.ui/100)+'px');r.setProperty('--cmdfs',S.cmdFs+'px');const th=THEMES[S.uiTheme]||THEMES.dark,bs=document.body.style;for(const t of Object.values(THEMES))for(const k of Object.keys(t.v))bs.removeProperty(k);for(const [k,v] of Object.entries(th.v))bs.setProperty(k,v);bs.setProperty('--acc',S.acc||'#2a95d8');bs.fontFamily=(UIFONTS[S.font]||UIFONTS.segoe)[1];document.body.classList.toggle('lt',!!th.lt);document.body.classList.toggle('rmin',!!S.ribMin);document.body.classList.toggle('clean',!!S.clean);document.body.classList.toggle('ftabs',!!S.ftabs);$('#tClean').setAttribute('aria-pressed',!!S.clean);S.light=lum(S.bgModel)>.5;requestAnimationFrame(()=>{resize();draw()})}
 
@@ -3924,7 +3985,7 @@ document.addEventListener('keydown',ev=>{
   if(k==='F10'){ev.preventDefault();setTg('polar','#tPolar','Polar');return}
   if(k==='F11'){ev.preventDefault();setTg('otrack','#tTrack','Rastreo');return}
   if(k==='Tab'&&req&&req.kind==='pt'){ev.preventDefault();if(cands.length>1){candIdx=(candIdx+1)%cands.length;snap=cands[candIdx];curPt=computePoint();draw()}return}
-  if((ev.ctrlKey||ev.metaKey)&&!ev.altKey){const kl=k.toLowerCase();if(kl==='z'){ev.preventDefault();if(running)cancelReq();undo();return}if(kl==='y'){ev.preventDefault();if(running)cancelReq();redo();return}if(kl==='p'){ev.preventDefault();run('TRAZAR');return}if(kl==='c'&&!req&&sel.size&&!(t===inp&&inp.selectionStart!==inp.selectionEnd)){ev.preventDefault();cCopyClip();return}if(kl==='v'&&!req&&clip&&!inp.value){ev.preventDefault();run('PEGARPP');return}if(kl==='s'){ev.preventDefault();run('GUARDAR');return}if(kl==='o'){ev.preventDefault();run('ABRIR');return}return}
+  if((ev.ctrlKey||ev.metaKey)&&!ev.altKey){const kl=k.toLowerCase();if(kl==='z'){ev.preventDefault();if(running)cancelReq();undo();return}if(kl==='y'){ev.preventDefault();if(running)cancelReq();redo();return}if(kl==='p'){ev.preventDefault();run('TRAZAR');return}if(kl==='c'&&!req&&sel.size&&!(t===inp&&inp.selectionStart!==inp.selectionEnd)){ev.preventDefault();cCopyClip();return}if(kl==='v'&&!req&&clip&&!inp.value){ev.preventDefault();run('PEGARPP');return}if(kl==='s'&&ev.shiftKey){ev.preventDefault();run('GUARDARCOMO');return}if(kl==='s'){ev.preventDefault();run('GUARDAR');return}if(kl==='o'){ev.preventDefault();run('ABRIR');return}return}
   if(k==='Escape'){ev.preventDefault();closeMenu();acmpHide();$('#appm').classList.remove('open');$('#hist').classList.remove('big');inp.value='';if(req)cancelReq();else if(hotG.length){hotG=[];draw()}else{sel.clear();win=null;refresh();draw()}return}
   if(k==='Enter'||(k===' '&&!(req&&req.kind==='txt'))){ev.preventDefault();const v=inp.value;inp.value='';if(req&&v.trim()&&(req.kind==='pt'||req.kind==='num'))pushRecentIn(v.trim());submit(v);return}
   if((k==='Delete'||k==='Supr')&&!req&&!inp.value){if(sel.size){ev.preventDefault();run('BORRA')}return}
