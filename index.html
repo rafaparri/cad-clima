@@ -299,6 +299,7 @@ const LWS=[0.05,0.09,0.13,0.15,0.18,0.2,0.25,0.3,0.35,0.4,0.5,0.53,0.6,0.7,0.8,1
 const PAPERS={A4:[297,210],A3:[420,297],A2:[594,420],A1:[841,594],A0:[1189,841]};
 const DENS=[1,2,5,10,20,25,50,75,100,125,150,200,250,300,400,500,750,1000,1500,2000,2500,5000];
 const CHANGELOG=[
+  {v:'1.7.1',d:'2026-11-27',t:['Vista previa de selección: el objeto bajo el cursor se resalta antes de hacer clic','Pinzamientos: también se pueden arrastrar (pulsar, mover y soltar) además de clic y clic','Pinzamientos más fáciles de acertar y la mira de designación respeta el tamaño de Opciones']},
   {v:'1.7',d:'2026-11-27',t:['Cinta de opciones como ZWCAD 2024: pestañas Inicio, Anotar, Insertar, Vistas, Herramientas, Administrar, Exportar y Exprés','Botones con desplegable (Círculo, Arco, Polilínea, Matriz, Lineal, Pegar…) y lanzadores de cuadro en los grupos','CÍRCULO y ARCO con todas sus opciones: 2P, 3P, Ttr, tan-tan-tan, inicio-centro-fin, inicio-fin-radio, continuar…','Paleta Propiedades acoplada a la izquierda con General, Vista y Varios','Barra de acceso rápido y título como ZWCAD']},
   {v:'1.6',d:'2026-11-26',t:['Menú Acerca de con la versión y su fecha','Apariencia configurable: temas de color, color de acento, tipo de letra, tamaños y fondos']},
   {v:'1.5',d:'2026-11-26',t:['Predimensionado de conductos por velocidad máxima (chapa 9 m/s, fibra 6 m/s, flexible 4 m/s), modificable por tramos']},
@@ -317,7 +318,7 @@ const THEMES={
   hc:{n:'Alto contraste (máxima legibilidad)',v:{'--ttl':'#000000','--tab':'#000000','--rib':'#0a0a0a','--pan':'#0a0a0a','--ptl':'#161616','--brd':'#6a6a6a','--ink':'#ffffff','--mute':'#e6e6e6','--hov':'#333333','--on':'#474747','--inp':'#000000','--st':'#000000','--dlg':'#121212','--warn':'#ff9a7a'}}};
 const UIFONTS={segoe:['Segoe UI (como AutoCAD)','"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif'],verdana:['Verdana (muy legible)','Verdana,Geneva,"Segoe UI",sans-serif'],tahoma:['Tahoma','Tahoma,"Segoe UI",sans-serif'],arial:['Arial','Arial,"Helvetica Neue",sans-serif'],calibri:['Calibri','Calibri,"Segoe UI",sans-serif'],system:['Letra del sistema','system-ui,-apple-system,sans-serif']};
 const ACCENTS=[['#2a95d8','Azul AutoCAD'],['#1f6fd1','Azul intenso'],['#18a39a','Turquesa'],['#3aa655','Verde'],['#e08a1e','Naranja'],['#d64545','Rojo'],['#8a5cd6','Morado'],['#6b7787','Gris']];
-const SDEF={palOpen:true,palDock:true,palW:24,acc:'#2a95d8',font:'segoe',vSteel:9,vFib:6,vFlex:4,ortho:false,osnap:true,grid:true,light:false,polar:false,otrack:true,polarInc:90,aperture:10,lwt:true,tab:'inicio',dyn:true,curSize:5,curCol:'#ffffff',curColP:'#000000',curTint:false,pick:5,snapSz:6,snapCol:'#ffb000',snapTip:true,trkFull:true,trkCol:'#4fd16a',gripSz:5,gripCol:'#2f8fff',gripHov:'#ff7f7f',gripHot:'#ff0000',gripMenu:true,gripLim:300,uiTheme:'dark',ui:100,cmdFs:14,bgModel:'#212830',bgPaper:'#8d939b',ribMin:false,clean:false,ftabs:false,rcDef:'menu',rcEdit:'menu',rcCmd:'menuopt',rcTime:false,rcMs:250};
+const SDEF={selPrev:true,palOpen:true,palDock:true,palW:24,acc:'#2a95d8',font:'segoe',vSteel:9,vFib:6,vFlex:4,ortho:false,osnap:true,grid:true,light:false,polar:false,otrack:true,polarInc:90,aperture:10,lwt:true,tab:'inicio',dyn:true,curSize:5,curCol:'#ffffff',curColP:'#000000',curTint:false,pick:5,snapSz:6,snapCol:'#ffb000',snapTip:true,trkFull:true,trkCol:'#4fd16a',gripSz:5,gripCol:'#2f8fff',gripHov:'#ff7f7f',gripHot:'#ff0000',gripMenu:true,gripLim:300,uiTheme:'dark',ui:100,cmdFs:14,bgModel:'#212830',bgPaper:'#8d939b',ribMin:false,clean:false,ftabs:false,rcDef:'menu',rcEdit:'menu',rcCmd:'menuopt',rcTime:false,rcMs:250};
 const S={...SDEF};let CECOL=null,CELW=null,docName='Plano1';
 let mouseS=[0,0],mouseW=[0,0],snap=null,inCanvas=false,lastPt=[0,0];
 let req=null,running=null,lastCmd=null,win=null,pan=null;
@@ -923,9 +924,9 @@ function renderEnts(c,vw,list,light,o){
   for(const e of list){
     if(!vis(e))continue;if(e.t==='vp'&&o.mode!=='paper')continue;if(!bbOver(bb(e),r))continue;
     const col=colOf(e,light);c.strokeStyle=col;c.fillStyle=col;
-    const hs=o.sel&&sel.has(e.id);RO.hs=hs;let lw=1.1;
+    const hs=o.sel&&sel.has(e.id),hv=o.sel&&HOVS&&HOVS.has(e.id);RO.hs=hs;let lw=1.1;
     if(S.lwt&&e.t!=='vp'){const w=lwOf(e);lw=o.mode==='model'?Math.min(5,Math.max(1,w*3)):Math.max(.8,w*o.pxmm)}
-    c.lineWidth=hs?Math.max(2,lw):lw;
+    c.lineWidth=hv?Math.max(3.2,lw+2.2):hs?Math.max(2,lw):lw;
     let dash=null;
     if(hs)dash=[7,4];
     else if(!NOLT[e.t]){const p=ltPat(e);if(p){const k=(e.lts||1)*(o.mode==='model'?LTS*vw.s:o.pxmm),d=p.map(v=>Math.abs(v)*k);if(d.reduce((a,b)=>a+b,0)>=4)dash=d.map(v=>Math.max(v,.01))}}
@@ -942,8 +943,10 @@ function renderLayout(c,L,pv,ui){
   renderEnts(c,pv,L.ents,true,{mode:'paper',pxmm:pv.s,sel:ui&&!act});
   if(ui&&act){const r=vpRect(act);c.strokeStyle='#14a3c7';c.lineWidth=3;c.strokeRect(X(r[0]),Y(r[3]),(r[2]-r[0])*pv.s,(r[3]-r[1])*pv.s)}
 }
+let HOVS=null;
 function paint(){
   g2.setTransform(DPR,0,0,DPR,0,0);syncView();
+  {HOVS=null;if(inCanvas&&!pan&&!win&&!document.getElementById('ctx')&&S.selPrev!==false&&(!req||req.kind==='sel'||req.kind==='pick')&&!gripAt(...mouseS)){const e=pick(mouseW);if(e)HOVS=new Set(groupOf(e).map(o=>o.id))}}
   if(space==='model')renderModel(g2,{cx:view.cx,cy:view.cy,s:view.s,W,H},S.light,true);
   else{const L=layouts[space];renderLayout(g2,L,{...L.pv,W,H},true)}
   const vw={cx:view.cx,cy:view.cy,s:view.s,W,H},light=space==='model'?S.light:true,acc=light?'#0a8fb0':'#2fd3f5';
@@ -1336,7 +1339,7 @@ function saveS(){try{localStorage.setItem('cadclima.s',JSON.stringify(S));localS
 
 /* ---------- designación ---------- */
 function pick(w){
-  const tol=7/view.s;let best=null,bd=tol;
+  const tol=(Math.max(3,S.pick||5)+2)/view.s;let best=null,bd=tol;
   for(let i=ents.length-1;i>=0;i--){const e=ents[i];if(!vis(e))continue;const b=bb(e);if(w[0]<b[0]-tol||w[0]>b[2]+tol||w[1]<b[1]-tol||w[1]>b[3]+tol)continue;
     let d=Infinity;if(e.t==='duct'&&ductSegData(e).some(g=>{const t=(w[0]-g.a[0])*g.u[0]+(w[1]-g.a[1])*g.u[1],q=(w[0]-g.a[0])*g.n[0]+(w[1]-g.a[1])*g.n[1];return t>=0&&t<=g.L&&q<=g.wl&&q>=-g.wr}))d=0;else if(e.t==='text'&&inPoly(w,textBox(e)))d=0;else if(COMP[e.t]&&comp(e).texts.some(t=>inPoly(w,textBox(t))))d=0;else for(const s of segs(e))d=Math.min(d,dSeg(w,s));
     if(d<bd){bd=d;best=e}}
@@ -1397,7 +1400,7 @@ function applyGrip(e,k,p,g){
   else if(k[0]==='k'){if(k[1]==='0')e.x1=p[0];else e.x2=p[0];if(k[2]==='0')e.y1=p[1];else e.y2=p[1];const r=vpRect(e);Object.assign(e,{x1:r[0],y1:r[1],x2:r[2],y2:r[3]})}
 }
 function selGrips(){if((req&&!gripMode)||!sel.size||sel.size>(S.gripLim||300))return [];const o=[];for(const e of ents)if(sel.has(e.id))for(const g of gripsOf(e))o.push({e,x:g[0],y:g[1],k:g[2]});return o}
-function gripAt(sx,sy){for(const g of selGrips()){const p=toS(g.x,g.y);if(Math.abs(p[0]-sx)<=7&&Math.abs(p[1]-sy)<=7)return g}return null}
+function gripAt(sx,sy){const t=Math.max(7,S.gripSz+4);let best=null,bd=Infinity;for(const g of selGrips()){const p=toS(g.x,g.y),d=Math.max(Math.abs(p[0]-sx),Math.abs(p[1]-sy));if(d<=t&&d<bd){bd=d;best=g}}return best}
 let hotG=[],gripMode=null,gripHover=null,gripMenuAt=null;
 const GMODES=['ESTIRAR','DESPLAZAR','GIRAR','ESCALA','SIMETRÍA'];
 const GMKW={ESTIRAR:0,EST:0,DESPLAZAR:1,DESPLAZA:1,DES:1,D:1,GIRAR:2,GIRA:2,GI:2,ESCALA:3,ESC:3,SIMETRIA:4,SIMETRÍA:4,SI:4};
@@ -3872,7 +3875,7 @@ cv.addEventListener('pointerdown',ev=>{
   if(req&&req.kind==='pick'){const e=pick(mouseW);if(e)resolveReq({e,p:mouseW.slice()});else msg('Ningún objeto en ese punto','e');return}
   if(req&&req.kind!=='sel')return;
   if(win){finishWin(...mouseS);return}
-  if(!req){const g=gripAt(...mouseS);if(g){if(ev.shiftKey)toggleHot(g);else startGrip(g);return}}
+  if(!req){const g=gripAt(...mouseS);if(g){if(ev.shiftKey)toggleHot(g);else{gripDrag={x:mouseS[0],y:mouseS[1],moved:false};startGrip(g)}return}}
   const e=pick(mouseW);if(e){toggleSel(e,ev.shiftKey);return}
   win={sx:mouseS[0],sy:mouseS[1],drag:false,shift:ev.shiftKey};draw();
 });
@@ -3881,11 +3884,13 @@ cv.addEventListener('pointermove',ev=>{
   if(pan&&pan.zoom){const k=Math.pow(1.008,pan.sy-mouseS[1]);if(pan.act)pan.act.den=pan.den/k;else pan.v.s=pan.s*k;syncView();draw();return}
   if(pan){if(pan.act){const k=pan.act.den/pan.v.s;pan.act.cx=pan.cx-(mouseS[0]-pan.sx)*k;pan.act.cy=pan.cy+(mouseS[1]-pan.sy)*k}else{pan.v.cx=pan.cx-(mouseS[0]-pan.sx)/pan.v.s;pan.v.cy=pan.cy+(mouseS[1]-pan.sy)/pan.v.s}syncView();mouseW=toW(...mouseS)}
   if(win&&Math.hypot(mouseS[0]-win.sx,mouseS[1]-win.sy)>6)win.drag=true;
+  if(gripDrag&&(ev.buttons&1)&&Math.hypot(mouseS[0]-gripDrag.x,mouseS[1]-gripDrag.y)>6)gripDrag.moved=true;
   if(gripMenuAt&&Math.hypot(mouseS[0]-gripMenuAt.x,mouseS[1]-gripMenuAt.y)>60){closeCtx();gripMenuAt=null}
   if(!pan&&!win)gripHoverCheck();
   draw();
 });
-cv.addEventListener('pointerup',ev=>{if(ev.button===2&&rcDown){const d=rcDown;rcDown=null;rightClick(d.x,d.y,performance.now()-d.t);return}if(pan){if(pan.act)save();pan=null;return}if(win&&win.drag){upd(ev);finishWin(...mouseS)}if(matchMedia('(pointer:fine)').matches&&!dlg.open)inp.focus()});
+let gripDrag=null;
+cv.addEventListener('pointerup',ev=>{if(ev.button===2&&rcDown){const d=rcDown;rcDown=null;rightClick(d.x,d.y,performance.now()-d.t);return}if(gripDrag&&ev.button===0){const g=gripDrag;gripDrag=null;if(g.moved&&req&&req.kind==='pt'&&gripMode){upd(ev);givePoint(curPoint());return}}if(pan){if(pan.act)save();pan=null;return}if(win&&win.drag){upd(ev);finishWin(...mouseS)}if(matchMedia('(pointer:fine)').matches&&!dlg.open)inp.focus()});
 cv.addEventListener('wheel',ev=>{ev.preventDefault();const r=cv.getBoundingClientRect(),sx=ev.clientX-r.left,sy=ev.clientY-r.top,v=baseView(),w=[v.cx+(sx-W/2)/v.s,v.cy-(sy-H/2)/v.s],k=Math.pow(1.0015,-ev.deltaY*(ev.deltaMode===1?30:1));v.s=Math.max(1e-6,Math.min(1e4,v.s*k));v.cx=w[0]-(sx-W/2)/v.s;v.cy=w[1]+(sy-H/2)/v.s;syncView();mouseW=toW(sx,sy);draw()},{passive:false});
 cv.addEventListener('auxclick',ev=>{if(ev.button===1)ev.preventDefault()});
 let lastMid=0;cv.addEventListener('mousedown',ev=>{if(ev.button===1){const t=Date.now();if(t-lastMid<350)zoomExt();lastMid=t}});
